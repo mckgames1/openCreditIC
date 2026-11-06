@@ -16,9 +16,9 @@ Personel ana sayfada demo yükleme yapar ve son 25 kendi hareketini görür. İ�
 
 ## Test kanıtı
 
-`npm test` sonucu: **17 test geçti, 0 başarısız**. Canlı WAL veritabanından tutarlı yedek, yeni dosyaya geri yükleme, bakiye, komut ve tekrar kimliğinin korunması test edildi. Ödeme transaction'ında bakiye güncellemesinden sonra, commit öncesinde ve commit sonrasında süreç SIGKILL ile durdurularak SQLite yeniden açma ve aynı istek tekrarı test edildi. Yönetici incelemesi için yetki, gerekçe, aynı ve farklı içerikle tekrar ile sunucu yeniden başlatma test edildi. Fiyat/pulse sınırları ve başlamış işlem ayarının korunması test edildi. İki personelin işlem geçmişi ayrımı, denetim kaydı, yetki ve kalıcılığı test edildi. Chromium'da ödeme yanıtının kesilmesi ve tekrar test edildi; inceleme ekranı henüz tarayıcıda test edilmedi.
+`npm test` sonucu: **18 test geçti, 0 başarısız**. İki bağımsız süreç ve SQLite bağlantısı, iki sanal cihazın 25 TL bakiyeden 25 TL talebini yarış koşulunda çalıştırdı: ikinci bağlantının kilidi beklediği, tek düşüm ve tek komut, her iki isteğin tekrarı ve SQLite bütünlüğü doğrulandı. Bu çekirdek düzeyi testtir; gerçek iki okuyucu veya iki simülatör oturumu testi değildir. Yarış testi ayrıca beş kez geçti. Canlı WAL yedek ve yeni dosyaya geri yükleme test edildi. Ödeme transaction'ında bakiye güncellemesinden sonra, commit öncesinde ve commit sonrasında süreç SIGKILL ile durdurularak yeniden açma ve tekrar test edildi. Yönetici inceleme yetkisi, fiyat/pulse sınırları, personel geçmişi ve kalıcılık test edildi. Chromium'da ödeme yanıtı kaybı ve tekrar test edildi; inceleme ekranı henüz tarayıcıda test edilmedi.
 
-Kapsanan akışlar: 200 TL yükleme, 25 TL ödeme, tekrar istek, art arda iki ödeme denemesi, kartı tutarken tekrar yaklaştırma, yetersiz bakiye, demo modunda eski yolların reddi, legacy modunda bir route'un varlığı, fiyat snapshot'ı, yeniden açılışta kalıcılık ve personel API yetki reddi. İki bağımsız cihazın gerçek eşzamanlı yarışı test edilmedi.
+Kapsanan akışlar: 200 TL yükleme, 25 TL ödeme, tekrar istek, bağımsız süreçlerden eşzamanlı iki sanal cihaz isteği, kartı tutarken tekrar yaklaştırma, yetersiz bakiye, demo modunda eski yolların reddi, legacy modunda bir route'un varlığı, fiyat snapshot'ı, yeniden açılışta kalıcılık ve personel API yetki reddi.
 
 Bağımlılık kurulumu `NPM_CONFIG_CACHE=/tmp/opencreditic-npm-cache npm ci` ile tamamlandı. Node.js `v24.22.1`; paket gereksinimi `>=22.5.0` çünkü Faz 1 yerleşik `node:sqlite` kullanır.
 
@@ -43,4 +43,4 @@ Yedekleme çalışan SQLite veritabanından tutarlı anlık görüntü alır. Ge
 
 ## Sınırlar
 
-Gerçek RFID, ESP32, TFT, LED, ticket hattı, GPIO, fiziksel pulse, POS, bulut ve internetten erişim doğrulanmadı. Belirsiz komut `ambiguous` durumunda kalır; yönetici karar ve gerekçesi ayrı kaydedilir. Bakiye düzeltmesi veya iade henüz uygulanmamıştır. Gerçek fiziksel pulse sonucu atomik olarak garanti edilemez. Çift tıklamalı yükleme, gerçek eşzamanlılık ve çevrimdışı ağ testleri eksiktir. “Üretime hazır” iddiası yoktur.
+Gerçek RFID, ESP32, TFT, LED, ticket hattı, GPIO, fiziksel pulse, POS, bulut ve internetten erişim doğrulanmadı. Belirsiz komut `ambiguous` durumunda kalır; yönetici karar ve gerekçesi ayrı kaydedilir. Bakiye düzeltmesi veya iade henüz uygulanmamıştır. Gerçek fiziksel pulse sonucu atomik olarak garanti edilemez. Çift tıklamalı yükleme, gerçek okuyucu eşzamanlılığı ve çevrimdışı ağ testleri eksiktir. “Üretime hazır” iddiası yoktur.

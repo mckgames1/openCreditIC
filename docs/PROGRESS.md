@@ -8,11 +8,13 @@ Temel commit: `c96727c2d76d54179b67c1fcc34fc4cb1a8a5466`
 
 Faz 1 tamamlanmadı; yerel demo geliştirme aşamasındadır. `npm run phase1` mevcut sunucu girişini demo modunda başlatır, Pug görünümü sunar ve legacy route'ları kaydetmez. Normal `npm start` legacy modudur. Demo veritabanı `phase1-data/demo.sqlite` altında ayrıdır.
 
-`/phase1/home`, mevcut `home.pug` üzerindeki kayıt ve yükleme pencerelerini kullanır: demo hesap ve sanal UID birlikte oluşturulur, kart seçilerek bakiye görüntülenir ve yükleme SQLite API'sine gönderilir. Simülatör ayrı ekranda seçilen kartla çalışır. Diğer eski ana sayfa işlemleri demo modunda uygulanmamıştır. Tarayıcıda görsel etkileşim henüz test edilmedi.
+`/phase1/home`, mevcut `home.pug` üzerindeki kayıt ve yükleme pencerelerini kullanır: demo hesap ve sanal UID birlikte oluşturulur, kart seçilerek bakiye görüntülenir ve yükleme SQLite API'sine gönderilir. Simülatör ayrı ekranda seçilen kartla çalışır. Bu akış Chromium'da test edildi; diğer eski ana sayfa işlemleri demo modunda uygulanmamıştır.
+
+Mevcut ana sayfada yönetici için makine adı, fiyatı, aktif durumu ve sanal pulse süresi/adedi/aralığı ile toplam yükleme, harcama ve bakiye özeti gösterilir. Chromium'da 200 TL yükleme, 50 TL fiyat ve 150 ms ayarla oyun sonrası 150 TL bakiye doğrulandı; gerçek donanım kullanılmadı.
 
 ## Test kanıtı
 
-`npm test` sonucu: **13 test geçti, 0 başarısız**. Ödeme transaction'ında bakiye güncellemesinden sonra, commit öncesinde ve commit sonrasında süreç SIGKILL ile durdurularak SQLite yeniden açma ve aynı istek tekrarı test edildi. Yönetici incelemesi için yetki, gerekçe, aynı ve farklı içerikle tekrar ile sunucu yeniden başlatma test edildi. Chromium'da önceki ödeme akışında yanıtın sunucudan sonra kesilmesi, sayfanın yeniden yüklenmesi ve aynı ödeme kimliğiyle tekrar test edildi; inceleme ekranı henüz tarayıcıda test edilmedi.
+`npm test` sonucu: **14 test geçti, 0 başarısız**. Ödeme transaction'ında bakiye güncellemesinden sonra, commit öncesinde ve commit sonrasında süreç SIGKILL ile durdurularak SQLite yeniden açma ve aynı istek tekrarı test edildi. Yönetici incelemesi için yetki, gerekçe, aynı ve farklı içerikle tekrar ile sunucu yeniden başlatma test edildi. Fiyat/pulse sınırları ve başlamış işlem ayarının korunması test edildi. Chromium'da ödeme yanıtının kesilmesi ve tekrar test edildi; inceleme ekranı henüz tarayıcıda test edilmedi.
 
 Kapsanan akışlar: 200 TL yükleme, 25 TL ödeme, tekrar istek, art arda iki ödeme denemesi, kartı tutarken tekrar yaklaştırma, yetersiz bakiye, demo modunda eski yolların reddi, legacy modunda bir route'un varlığı, fiyat snapshot'ı, yeniden açılışta kalıcılık ve personel API yetki reddi. İki bağımsız cihazın gerçek eşzamanlı yarışı test edilmedi.
 

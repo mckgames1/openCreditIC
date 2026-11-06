@@ -142,3 +142,31 @@ test('only admin can record an idempotent review; restart preserves original pay
     assert.equal(after.data.ledger.length, 2);
   } finally { await running.close(); }
 });
+
+test('machine settings validate pulse range and retain price snapshot', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencredit-machine-'));
+  const running = startServer({ host: '127.0.0.1', port: 0, databasePath: path.join(dir, 'demo.sqlite') });
+  await new Promise(resolve => running.server.once('listening', resolve));
+  const base = `http://127.0.0.1:${running.server.address().port}`;
+  try {
+    const setup = await jsonRequest(base, '/phase1/api/setup', { method: 'POST', body: JSON.stringify({ username: 'admin', password: 'correct horse battery staple' }) });
+    const cookie = setup.cookie;
+    const patchMachine = body => jsonRequest(base, '/phase1/api/machines/DEMO-MACHINE', { method: 'PATCH', body: JSON.stringify(body) }, cookie);
+    assert.equal((await patchMachine({ pulseMs: 9 })).response.status, 400);
+    assert.equal((await patchMachine({ pulseMs: 1001 })).response.status, 400);
+    const saved = await patchMachine({ name: 'Deneme', priceTl: '50.00', pulseMs: 150, pulseCount: 2, pulseGapMs: 200 });
+    assert.equal(saved.data.machine.price_cents, 5000);
+    await jsonRequest(base, '/phase1/api/topups', { method: 'POST', body: JSON.stringify({ accountId: 'demo-account', cardUid: 'DEMO-0001', amountTl: '200', idempotencyKey: 'machine-topup-001' }) }, cookie);
+    await jsonRequest(base, '/phase1/api/demo/simulator/card', { method: 'POST', body: JSON.stringify({ action: 'approach', cardUid: 'DEMO-0001' }) }, cookie);
+    const payment = await jsonRequest(base, '/phase1/api/demo/payment', { method: 'POST', body: JSON.stringify({ cardUid: 'DEMO-0001', idempotencyKey: 'machine-payment-001' }) }, cookie);
+    await patchMachine({ priceTl: '75.00', pulseMs: 300 });
+    const command = running.store.getPulseCommand(payment.data.pulseCommandId);
+    assert.equal(command.amount_cents, 5000);
+    assert.equal(command.pulse_ms, 150);
+    assert.equal(command.pulse_count, 2);
+    const state = await jsonRequest(base, '/phase1/api/state', {}, cookie);
+    assert.equal(state.data.summary.topups_cents, 20000);
+    assert.equal(state.data.summary.game_charges_cents, 5000);
+    assert.equal(state.data.accounts.reduce((sum, item) => sum + item.tl_balance_cents, 0), 15000);
+  } finally { await running.close(); }
+});

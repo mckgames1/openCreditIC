@@ -62,6 +62,29 @@ body.bg-dark.text-white
                 select#demoCardChoice.form-control
                 a.btn.btn-outline-primary.mt-2(href='/phase1/') Makine simülatörüne git
                 p#demoNotice(role='status')
+            section#demoAdmin.card.text-dark.p-3.mt-3.text-left(hidden)
+                h2.h5 Demo işlem özeti
+                p#demoTotals
+                p.small Yükleme ve harcama ayrı gösterilir; toplam bakiye tüm demo hesaplarındadır.
+                h2.h5 Makine ayarları
+                form#demoMachineForm
+                    label(for='demoMachine') Makine
+                    select#demoMachine.form-control(required)
+                    label(for='demoMachineName') Makine adı
+                    input#demoMachineName.form-control(required maxlength='120')
+                    label(for='demoPrice') Oyun fiyatı (TL)
+                    input#demoPrice.form-control(type='number' min='0.01' step='0.01' required)
+                    label(for='demoPulseMs') Pulse süresi (10–1000 ms)
+                    input#demoPulseMs.form-control(type='number' min='10' max='1000' required)
+                    label(for='demoPulseCount') Pulse adedi
+                    input#demoPulseCount.form-control(type='number' min='1' max='100' required)
+                    label(for='demoPulseGap') Darbeler arası boşluk (ms)
+                    input#demoPulseGap.form-control(type='number' min='0' max='10000' required)
+                    label.mt-2
+                        input#demoMachineEnabled(type='checkbox')
+                        |  Makine aktif
+                    div
+                        button.btn.btn-primary.mt-2(type='submit') Ayarları kaydet
         div.btn-group-vertical.mt-5.col-lg-7.rounded.center-menu
             div.w-100
                 .form-group

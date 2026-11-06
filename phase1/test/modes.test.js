@@ -36,7 +36,9 @@ test('demo blocks legacy routes and legacy mode retains its route', async () => 
         assert.equal(setup.status, 201);
         const cookie = setup.headers.get('set-cookie').split(';')[0];
         const headers = { 'content-type': 'application/json', cookie };
-        const topup = await fetch(`http://127.0.0.1:${port}/phase1/api/topups`, { method: 'POST', headers, body: JSON.stringify({ accountId: 'demo-account', cardUid: 'DEMO-0001', amountTl: '200.00', idempotencyKey: 'home-demo-topup-001' }) });
+        const topupBody = JSON.stringify({ accountId: 'demo-account', cardUid: 'DEMO-0001', amountTl: '200.00', idempotencyKey: 'home-demo-topup-001' });
+        assert.equal((await fetch(`http://127.0.0.1:${port}/phase1/api/demo/topup-intents`, { method: 'POST', headers, body: topupBody })).status, 201);
+        const topup = await fetch(`http://127.0.0.1:${port}/phase1/api/topups`, { method: 'POST', headers, body: topupBody });
         assert.equal(topup.status, 201);
         const state = await (await fetch(`http://127.0.0.1:${port}/phase1/api/state`, { headers: { cookie } })).json();
         assert.equal(state.cards.find(card => card.uid === 'DEMO-0001').tl_balance_cents, 20000);

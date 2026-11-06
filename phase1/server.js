@@ -260,7 +260,7 @@ function createApp({ store, standalone = true }) {
 
   app.post('/api/topups', requireAuth, requireRole('admin', 'staff'), handle(async (req, res) => {
     const amountCents = parseMoneyCents(req.body.amountTl ?? req.body.amount, 'yükleme');
-    const result = store.topUp({ accountId: req.body.accountId, cardUid: req.body.cardUid || null, amountCents, idempotencyKey: req.body.idempotencyKey, actorUserId: req.user.id });
+    const result = store.topUp({ accountId: req.body.accountId, cardUid: req.body.cardUid || null, amountCents, idempotencyKey: req.body.idempotencyKey, actorUserId: req.user.id, requireIntentForNew: true });
     res.status(result.duplicate ? 200 : 201).json({ ...result, amountTl: formatMoney(result.amountCents), balanceAfterTl: formatMoney(result.balanceAfterCents) });
   }));
 

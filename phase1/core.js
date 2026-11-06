@@ -166,7 +166,10 @@ function createStore(databasePath, options = {}) {
     if (existing.request_hash !== hash || existing.operation !== operation) {
       throw new DomainError('idempotency_conflict', 'Aynı işlem anahtarı farklı içerikle kullanılamaz.', 409);
     }
-    return { key: normalizedKey, hash, duplicate: true, response: JSON.parse(existing.response_json) };
+    let response;
+    try { response = JSON.parse(existing.response_json); }
+    catch (_) { throw new DomainError('idempotency_corrupt', 'İşlem yanıtı okunamıyor; inceleme gerekli.', 409); }
+    return { key: normalizedKey, hash, duplicate: true, response };
   }
 
   function saveIdempotency(key, operation, hash, response) {
@@ -480,7 +483,15 @@ function createStore(databasePath, options = {}) {
     return getMachine(machine.id);
   }
 
-  function topUp({ accountId, cardUid = null, amountCents, idempotencyKey, actorUserId = null, entryType = 'topup', note = null }) {
+  function verifyRecordedTopup(response, payload, actorUserId, idempotencyKey) {
+    if (!response || typeof response !== 'object' || typeof response.entryId !== 'string') throw new DomainError('topup_history_inconsistent', 'Eski yükleme yanıtı tutarsız; inceleme gerekli.', 409);
+    const original = one('SELECT actor_user_id, account_id, card_uid, amount_cents, entry_type, balance_after_cents, idempotency_key FROM ledger_entries WHERE id = $id', { $id: response.entryId });
+    if (!original) throw new DomainError('topup_history_inconsistent', 'Eski yükleme kaydı eksik; inceleme gerekli.', 409);
+    if (original.actor_user_id !== actorUserId) throw new DomainError('topup_owner_mismatch', 'Yüklemeyi başlatan kullanıcıyla giriş yapın.', 403);
+    if (original.idempotency_key !== `${idempotencyKey}:ledger` || original.account_id !== payload.accountId || original.card_uid !== payload.cardUid || original.amount_cents !== payload.amountCents || original.entry_type !== payload.entryType || original.balance_after_cents !== response.balanceAfterCents || response.amountCents !== original.amount_cents || response.accountId !== original.account_id || response.entryType !== original.entry_type) throw new DomainError('topup_history_inconsistent', 'Eski yükleme kaydı tutarsız; inceleme gerekli.', 409);
+  }
+
+  function topUp({ accountId, cardUid = null, amountCents, idempotencyKey, actorUserId = null, entryType = 'topup', note = null, requireIntentForNew = false }) {
     amountCents = positiveInteger(amountCents, 'yükleme tutarı', { max: 9_000_000_000_000_000 });
     const payload = { accountId, cardUid: cardUid ? normalizeUid(cardUid) : null, amountCents, entryType, note: note || null };
     const result = withImmediateTransaction(() => {
@@ -488,6 +499,7 @@ function createStore(databasePath, options = {}) {
       const intentKey = `demo_topup_intent:${idempotency.key}`;
       const intentRow = one('SELECT value FROM settings WHERE key = $key', { $key: intentKey });
       const intent = intentRow ? JSON.parse(intentRow.value) : null;
+      if (requireIntentForNew && !intent && !idempotency.duplicate) throw new DomainError('intent_required', 'Yeni demo yükleme için önce sunucuda niyet oluşturun.', 409);
       if (intent && (intent.id !== idempotency.key || !['prepared', 'completed'].includes(intent.status))) throw new DomainError('intent_inconsistent', 'Niyet kaydı tutarsız; inceleme gerekli.', 409);
       if (intent && (intent.actorUserId !== actorUserId || stableStringify(intent.payload) !== stableStringify(payload))) throw new DomainError('intent_conflict', 'Yükleme niyeti kullanıcı veya içerikle uyuşmuyor.', 409);
       if (intent) {
@@ -499,8 +511,7 @@ function createStore(databasePath, options = {}) {
         if (intent) run('UPDATE settings SET value = $value WHERE key = $key', { $key: intentKey, $value: JSON.stringify({ ...intent, status: 'completed', response, completedAt: intent.completedAt || isoNow() }) });
       };
       if (idempotency.duplicate) {
-        const original = one('SELECT actor_user_id FROM ledger_entries WHERE id = $id', { $id: idempotency.response.entryId });
-        if (!original || original.actor_user_id !== actorUserId) throw new DomainError('topup_owner_mismatch', 'Yüklemeyi başlatan kullanıcıyla giriş yapın.', 403);
+        verifyRecordedTopup(idempotency.response, payload, actorUserId, idempotency.key);
         finishIntent(idempotency.response);
         return { ...idempotency.response, duplicate: true };
       }
@@ -550,8 +561,7 @@ function createStore(databasePath, options = {}) {
         return { intent, duplicate: true };
       }
       if (key.duplicate) {
-        const original = one('SELECT actor_user_id FROM ledger_entries WHERE id = $id', { $id: key.response.entryId });
-        if (!original || original.actor_user_id !== actorUserId) throw new DomainError('topup_owner_mismatch', 'Yüklemeyi başlatan kullanıcıyla giriş yapın.', 403);
+        verifyRecordedTopup(key.response, payload, actorUserId, key.key);
       }
       const account = getAccount(accountId);
       if (payload.cardUid && getCard(payload.cardUid).account_id !== account.id) throw new DomainError('card_account_mismatch', 'Kart bu hesaba bağlı değil.');
@@ -574,7 +584,7 @@ function createStore(databasePath, options = {}) {
     const intent = JSON.parse(row.value);
     if (intent.id !== id || !['prepared', 'completed'].includes(intent.status)) throw new DomainError('intent_inconsistent', 'Niyet kaydı tutarsız; inceleme gerekli.', 409);
     if (intent.actorUserId !== actorUserId) throw new DomainError('intent_owner_mismatch', 'Bu niyet başka kullanıcıya ait.', 403);
-    return topUp({ ...intent.payload, idempotencyKey: intent.id, actorUserId });
+    return topUp({ ...intent.payload, idempotencyKey: intent.id, actorUserId, requireIntentForNew: true });
   }
 
   function correctBalance({ accountId, amountCents, reason, idempotencyKey, actorUserId }) {

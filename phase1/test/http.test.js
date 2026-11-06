@@ -15,6 +15,15 @@ async function jsonRequest(base, pathName, options = {}, cookie = '') {
   return { response, data, cookie: response.headers.get('set-cookie')?.split(';')[0] || cookie };
 }
 
+// Most scenarios create a demo topup through the required intent first.
+// Tests of the direct compatibility route use jsonRequest explicitly.
+async function demoTopup(base, body, cookie = '') {
+  const options = { method: 'POST', body: JSON.stringify(body) };
+  const prepared = await jsonRequest(base, '/phase1/api/demo/topup-intents', options, cookie);
+  if (!prepared.response.ok) return prepared;
+  return jsonRequest(base, '/phase1/api/topups', options, cookie);
+}
+
 test('local demo flow enforces card removal and repeats one payment safely', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencreditic-http-'));
   const running = startServer({ host: '127.0.0.1', port: 0, databasePath: path.join(dir, 'demo.sqlite') });
@@ -25,7 +34,7 @@ test('local demo flow enforces card removal and repeats one payment safely', asy
     let result = await jsonRequest(base, '/phase1/api/setup', { method: 'POST', body: JSON.stringify({ username: 'admin', password: 'correct horse battery staple' }) });
     assert.equal(result.response.status, 201);
     cookie = result.cookie;
-    result = await jsonRequest(base, '/phase1/api/topups', { method: 'POST', body: JSON.stringify({ accountId: 'demo-account', cardUid: 'DEMO-0001', amountTl: '200,00', idempotencyKey: 'http-topup-001' }) }, cookie);
+    result = await demoTopup(base, { accountId: 'demo-account', cardUid: 'DEMO-0001', amountTl: '200,00', idempotencyKey: 'http-topup-001' }, cookie);
     assert.equal(result.response.status, 201);
     result = await jsonRequest(base, '/phase1/api/demo/simulator/card', { method: 'POST', body: JSON.stringify({ action: 'approach', cardUid: 'DEMO-0001' }) }, cookie);
     assert.equal(result.response.status, 200);
@@ -81,7 +90,7 @@ test('unknown card and real elapsed hold/removal windows preserve one charge per
     const admin = (await post('/phase1/api/setup', { username: 'admin', password: 'correct horse battery staple' })).cookie;
     const timing = await jsonRequest(base, '/phase1/api/machines/DEMO-MACHINE/timing', { method: 'PATCH', body: JSON.stringify({ cardRemovedMs: 200, paymentCooldownMs: 200 }) }, admin);
     assert.equal(timing.response.status, 200);
-    await post('/phase1/api/topups', { accountId: 'demo-account', cardUid: 'DEMO-0001', amountTl: '100', idempotencyKey: 'real-wait-topup-001' }, admin);
+    await demoTopup(base, { accountId: 'demo-account', cardUid: 'DEMO-0001', amountTl: '100', idempotencyKey: 'real-wait-topup-001' }, admin);
     const card = (action, cardUid) => post('/phase1/api/demo/simulator/card', { action, cardUid }, admin);
     const pay = (cardUid, idempotencyKey) => post('/phase1/api/demo/payment', { machineId: 'DEMO-MACHINE', cardUid, idempotencyKey }, admin);
     assert.equal((await card('approach', 'UNKNOWN-0001')).response.status, 200);
@@ -135,8 +144,8 @@ test('new demo account and card flow remains idempotent through topup and play',
     assert.equal(repeat.data.account.id, first.data.account.id);
     assert.equal(repeat.data.duplicate, true);
     const topup = { accountId: first.data.account.id, cardUid: register.uid, amountTl: '25.00', idempotencyKey: 'new-card-topup-001' };
-    await jsonRequest(base, '/phase1/api/topups', { method: 'POST', body: JSON.stringify(topup) }, cookie);
-    const dupTopup = await jsonRequest(base, '/phase1/api/topups', { method: 'POST', body: JSON.stringify(topup) }, cookie);
+    await demoTopup(base, topup, cookie);
+    const dupTopup = await demoTopup(base, topup, cookie);
     assert.equal(dupTopup.data.duplicate, true);
     await jsonRequest(base, '/phase1/api/demo/simulator/card', { method: 'POST', body: JSON.stringify({ action: 'approach', cardUid: register.uid }) }, cookie);
     const payment = { cardUid: register.uid, machineId: 'DEMO-MACHINE', idempotencyKey: 'new-card-payment-001' };
@@ -164,7 +173,7 @@ test('only admin can record an idempotent review; restart preserves original pay
     adminCookie = (await post('/phase1/api/setup', { username: 'admin', password: 'correct horse battery staple' })).cookie;
     await post('/phase1/api/admin/users', { username: 'staff', password: 'staff password 1', role: 'staff' }, adminCookie);
     const staffCookie = (await post('/phase1/api/auth/login', { username: 'staff', password: 'staff password 1' })).cookie;
-    await post('/phase1/api/topups', { accountId: 'demo-account', cardUid: 'DEMO-0001', amountTl: '200', idempotencyKey: 'review-topup-001' }, adminCookie);
+    await demoTopup(base, { accountId: 'demo-account', cardUid: 'DEMO-0001', amountTl: '200', idempotencyKey: 'review-topup-001' }, adminCookie);
     await post('/phase1/api/demo/simulator/card', { action: 'approach', cardUid: 'DEMO-0001' }, adminCookie);
     commandId = (await post('/phase1/api/demo/payment', { cardUid: 'DEMO-0001', idempotencyKey: 'review-payment-001' }, adminCookie)).data.pulseCommandId;
     await post(`/phase1/api/demo/pulse/${commandId}/simulate`, { outcome: 'response_lost' }, adminCookie);
@@ -205,7 +214,7 @@ test('machine settings validate pulse range and retain price snapshot', async ()
     assert.equal((await patchMachine({ pulseMs: 1001 })).response.status, 400);
     const saved = await patchMachine({ name: 'Deneme', priceTl: '50.00', pulseMs: 150, pulseCount: 2, pulseGapMs: 200 });
     assert.equal(saved.data.machine.price_cents, 5000);
-    await jsonRequest(base, '/phase1/api/topups', { method: 'POST', body: JSON.stringify({ accountId: 'demo-account', cardUid: 'DEMO-0001', amountTl: '200', idempotencyKey: 'machine-topup-001' }) }, cookie);
+    await demoTopup(base, { accountId: 'demo-account', cardUid: 'DEMO-0001', amountTl: '200', idempotencyKey: 'machine-topup-001' }, cookie);
     await jsonRequest(base, '/phase1/api/demo/simulator/card', { method: 'POST', body: JSON.stringify({ action: 'approach', cardUid: 'DEMO-0001' }) }, cookie);
     const payment = await jsonRequest(base, '/phase1/api/demo/payment', { method: 'POST', body: JSON.stringify({ cardUid: 'DEMO-0001', idempotencyKey: 'machine-payment-001' }) }, cookie);
     await patchMachine({ priceTl: '75.00', pulseMs: 300 });
@@ -239,10 +248,10 @@ test('staff sees only own persisted transactions and cannot change admin setting
     const staff1 = (await post('/phase1/api/auth/login', { username: 'staff1', password: 'staff password 1' })).cookie;
     const staff2 = (await post('/phase1/api/auth/login', { username: 'staff2', password: 'staff password 1' })).cookie;
     const topup = { accountId: 'demo-account', cardUid: 'DEMO-0001', amountTl: '10', idempotencyKey: 'staff1-topup-001' };
-    const first = await post('/phase1/api/topups', topup, staff1);
+    const first = await demoTopup(base, topup, staff1);
     assert.equal(first.response.status, 201);
-    assert.equal((await post('/phase1/api/topups', topup, staff1)).data.duplicate, true);
-    await post('/phase1/api/topups', { ...topup, idempotencyKey: 'staff2-topup-001' }, staff2);
+    assert.equal((await demoTopup(base, topup, staff1)).data.duplicate, true);
+    await demoTopup(base, { ...topup, idempotencyKey: 'staff2-topup-001' }, staff2);
     const denied = await jsonRequest(base, '/phase1/api/machines/DEMO-MACHINE', { method: 'PATCH', body: JSON.stringify({ priceTl: '50' }) }, staff1);
     assert.equal(denied.response.status, 403);
     assert.equal((await post('/phase1/api/admin/users', { username: 'intruder', password: 'staff password 1' }, staff1)).response.status, 403);
@@ -276,7 +285,7 @@ test('demo correction is admin-only, atomic, reasoned, idempotent and separated 
     const admin = (await post('/phase1/api/setup', { username: 'admin', password: 'correct horse battery staple' })).cookie;
     await post('/phase1/api/admin/users', { username: 'staff', password: 'staff password 1', role: 'staff' }, admin);
     const staff = (await post('/phase1/api/auth/login', { username: 'staff', password: 'staff password 1' })).cookie;
-    await post('/phase1/api/topups', { accountId: 'demo-account', cardUid: 'DEMO-0001', amountTl: '200', idempotencyKey: 'correction-topup-001' }, admin);
+    await demoTopup(base, { accountId: 'demo-account', cardUid: 'DEMO-0001', amountTl: '200', idempotencyKey: 'correction-topup-001' }, admin);
     const body = { accountId: 'demo-account', direction: 'subtract', amountTl: '12.34', reason: 'Demo kayıt düzeltmesi', idempotencyKey: 'correction-request-001' };
     assert.equal((await post('/phase1/api/admin/corrections', body, staff)).response.status, 403);
     assert.equal((await post('/phase1/api/admin/corrections', { ...body, reason: 'kısa' }, admin)).response.status, 400);
@@ -320,7 +329,7 @@ test('admin can block a demo card without duplicate audit; blocked card cannot b
     const admin = (await post('/phase1/api/setup', { username: 'admin', password: 'correct horse battery staple' })).cookie;
     await post('/phase1/api/admin/users', { username: 'staff', password: 'staff password 1', role: 'staff' }, admin);
     const staff = (await post('/phase1/api/auth/login', { username: 'staff', password: 'staff password 1' })).cookie;
-    await post('/phase1/api/topups', { accountId: 'demo-account', cardUid: 'DEMO-0001', amountTl: '25', idempotencyKey: 'card-lock-topup-001' }, admin);
+    await demoTopup(base, { accountId: 'demo-account', cardUid: 'DEMO-0001', amountTl: '25', idempotencyKey: 'card-lock-topup-001' }, admin);
     assert.equal((await post('/phase1/api/cards/DEMO-0001/lock', { locked: true }, staff)).response.status, 403);
     assert.equal((await post('/phase1/api/cards/DEMO-0001/lock', { locked: 'false' }, admin)).response.status, 400);
     assert.equal((await post('/phase1/api/cards/DEMO-0001/lock', { locked: true }, admin)).data.card.locked, true);
@@ -361,7 +370,7 @@ test('second demo card shares account balance and idempotent link survives resta
     assert.equal((await post('/phase1/api/demo/attach-card', link, admin)).data.duplicate, true);
     assert.equal((await post('/phase1/api/demo/attach-card', { ...link, accountId: 'other-account' }, admin)).response.status, 409);
     assert.equal((await post('/phase1/api/demo/attach-card', { ...link, idempotencyKey: 'attach-card-test-002' }, admin)).response.status, 409);
-    await post('/phase1/api/topups', { accountId: 'demo-account', cardUid: 'DEMO-0001', amountTl: '200', idempotencyKey: 'attach-topup-001' }, admin);
+    await demoTopup(base, { accountId: 'demo-account', cardUid: 'DEMO-0001', amountTl: '200', idempotencyKey: 'attach-topup-001' }, admin);
     await post('/phase1/api/demo/simulator/card', { action: 'approach', cardUid: link.uid }, admin);
     const payment = await post('/phase1/api/demo/payment', { cardUid: link.uid, idempotencyKey: 'attach-payment-001' }, admin);
     assert.equal(payment.data.balanceAfterCents, 17500);
@@ -397,7 +406,7 @@ test('admin timing settings distinguish short removal and payment cooldown', asy
     assert.equal(timingA.data.machine.settings_version, 2);
     assert.equal((await post('/phase1/api/machines', { id: 'DEVICE-B', name: 'B', priceTl: '25' }, admin)).response.status, 201);
     assert.equal((await patch({ cardRemovedMs: 300, paymentCooldownMs: 0 }, admin, 'DEVICE-B')).response.status, 200);
-    await post('/phase1/api/topups', { accountId: 'demo-account', cardUid: 'DEMO-0001', amountTl: '100', idempotencyKey: 'timing-topup-001' }, admin);
+    await demoTopup(base, { accountId: 'demo-account', cardUid: 'DEMO-0001', amountTl: '100', idempotencyKey: 'timing-topup-001' }, admin);
     const card = action => post('/phase1/api/demo/simulator/card', { action, cardUid: 'DEMO-0001' }, admin);
     const pay = idempotencyKey => post('/phase1/api/demo/payment', { cardUid: 'DEMO-0001', idempotencyKey }, admin);
     await card('approach');
@@ -447,7 +456,7 @@ test('admin can suspend and restore staff without reviving old sessions', async 
     const created = await post('/phase1/api/admin/users', { username: 'staff', password: 'staff password 1', role: 'staff' }, admin);
     const staffId = created.data.user.id;
     const staff = (await post('/phase1/api/auth/login', { username: 'staff', password: 'staff password 1' })).cookie;
-    await post('/phase1/api/topups', { accountId: 'demo-account', cardUid: 'DEMO-0001', amountTl: '10', idempotencyKey: 'staff-access-topup-001' }, staff);
+    await demoTopup(base, { accountId: 'demo-account', cardUid: 'DEMO-0001', amountTl: '10', idempotencyKey: 'staff-access-topup-001' }, staff);
     const url = `/phase1/api/admin/staff/${staffId}/lock`;
     assert.equal((await post(url, { locked: true }, staff)).response.status, 403);
     assert.equal((await post(url, { locked: 'false' }, admin)).response.status, 400);
@@ -503,7 +512,7 @@ test('per-device demo LED settings and simulated version results persist indepen
     const failed = (await report('DEVICE-B', { version: b.settings_version, status: 'failed' }, admin)).data.machine;
     assert.equal(failed.settings_status, 'failed');
     assert.equal(failed.simulated_led_enabled, false);
-    await post('/phase1/api/topups', { accountId: 'demo-account', cardUid: 'DEMO-0001', amountTl: '100', idempotencyKey: 'led-topup-001' }, admin);
+    await demoTopup(base, { accountId: 'demo-account', cardUid: 'DEMO-0001', amountTl: '100', idempotencyKey: 'led-topup-001' }, admin);
     await post('/phase1/api/demo/simulator/card', { action: 'approach', cardUid: 'DEMO-0001' }, admin);
     const paymentBody = { cardUid: 'DEMO-0001', idempotencyKey: 'led-payment-001' };
     const paid = await post('/phase1/api/demo/payment', paymentBody, admin);
@@ -677,7 +686,7 @@ test('admin sees persisted simulated command history and staff cannot obtain it'
     const admin = (await post('/phase1/api/setup', { username: 'admin', password: 'correct horse battery staple' })).cookie;
     await post('/phase1/api/admin/users', { username: 'staff', password: 'staff password 1', role: 'staff' }, admin);
     const staff = (await post('/phase1/api/auth/login', { username: 'staff', password: 'staff password 1' })).cookie;
-    await post('/phase1/api/topups', { accountId: 'demo-account', amountTl: '50', idempotencyKey: 'pulse-view-topup-001' }, admin);
+    await demoTopup(base, { accountId: 'demo-account', amountTl: '50', idempotencyKey: 'pulse-view-topup-001' }, admin);
     await post('/phase1/api/demo/simulator/card', { action: 'approach', cardUid: 'DEMO-0001' }, admin);
     const payment = await post('/phase1/api/demo/payment', { cardUid: 'DEMO-0001', machineId: 'DEMO-MACHINE', idempotencyKey: 'pulse-view-payment-001' }, admin);
     await post(`/phase1/api/demo/pulse/${payment.data.pulseCommandId}/simulate`, { outcome: 'response_lost' }, admin);
@@ -764,16 +773,16 @@ test('lost topup response can only be retried by original user after restart', a
     await post('/phase1/api/admin/users', { username: 'staff', password: 'staff password 1', role: 'staff' }, admin);
     const staff = (await post('/phase1/api/auth/login', { username: 'staff', password: 'staff password 1' })).cookie;
     const body = { accountId: 'demo-account', cardUid: 'DEMO-0001', amountTl: '20', idempotencyKey: 'topup-owner-test-001' };
-    const first = await post('/phase1/api/topups', body, staff);
+    const first = await demoTopup(base, body, staff);
     assert.equal(first.response.status, 201);
     await running.close();
     running = startServer({ host: '127.0.0.1', port: 0, databasePath });
     await new Promise(resolve => running.server.once('listening', resolve));
     base = `http://127.0.0.1:${running.server.address().port}`;
-    assert.equal((await post('/phase1/api/topups', body)).response.status, 401);
-    assert.equal((await post('/phase1/api/topups', body, admin)).response.status, 403);
-    assert.equal((await post('/phase1/api/topups', { ...body, amountTl: '21' }, staff)).response.status, 409);
-    const retry = await post('/phase1/api/topups', body, staff);
+    assert.equal((await demoTopup(base, body)).response.status, 401);
+    assert.equal((await demoTopup(base, body, admin)).response.status, 403);
+    assert.equal((await demoTopup(base, { ...body, amountTl: '21' }, staff)).response.status, 409);
+    const retry = await demoTopup(base, body, staff);
     assert.equal(retry.response.status, 200);
     assert.equal(retry.data.duplicate, true);
     assert.equal(retry.data.entryId, first.data.entryId);
@@ -806,7 +815,7 @@ test('admin-only read-only topup lookup reports confirmed, unknown and inconsist
     assert.equal((await post(endpoint, { idempotencyKey: key }, admin)).data.status, 'unknown');
     db.exec('ROLLBACK');
     const body = { accountId: 'demo-account', cardUid: 'DEMO-0001', amountTl: '25', idempotencyKey: key };
-    const first = await post('/phase1/api/topups', body, staff);
+    const first = await demoTopup(base, body, staff);
     const priorCount = running.store.summary().ledger_count;
     const found = await post(endpoint, { idempotencyKey: key }, admin);
     assert.equal(found.response.headers.get('cache-control'), 'no-store');
@@ -848,7 +857,7 @@ test('reasoned admin demo free play is atomic, idempotent and separate from paid
     assert.equal((await post(endpoint, { ...body, reason: 'short' }, admin)).response.status, 400);
     assert.equal((await post(endpoint, body, admin)).data.error, 'card_not_present');
     assert.equal(running.store.summary().pulseCount, 0);
-    await post('/phase1/api/topups', { accountId: 'demo-account', amountTl: '100', idempotencyKey: 'freeplay-topup-test-001' }, admin);
+    await demoTopup(base, { accountId: 'demo-account', amountTl: '100', idempotencyKey: 'freeplay-topup-test-001' }, admin);
     await post('/phase1/api/demo/simulator/card', { action: 'approach', cardUid: 'DEMO-0001' }, admin);
     const first = await post(endpoint, body, admin);
     assert.equal(first.response.status, 201);
@@ -921,13 +930,13 @@ test('recorded topup review respects actor and exposes the different-key concurr
     const staff1 = (await post('/phase1/api/auth/login', { username: 'staff1', password: 'staff password 1' })).cookie;
     const staff2 = (await post('/phase1/api/auth/login', { username: 'staff2', password: 'staff password 1' })).cookie;
     const body = { accountId: 'demo-account', cardUid: 'DEMO-0001', amountTl: '10', idempotencyKey: 'review-same-key-001' };
-    const same = await Promise.all([post('/phase1/api/topups', body, staff1), post('/phase1/api/topups', body, staff1)]);
+    const same = await Promise.all([demoTopup(base, body, staff1), demoTopup(base, body, staff1)]);
     assert.deepEqual(same.map(result => result.response.status).sort(), [200, 201]);
     assert.equal(running.store.getAccount('demo-account').tl_balance_cents, 1000);
-    const different = await Promise.all(['review-different-001', 'review-different-002'].map(key => post('/phase1/api/topups', { ...body, idempotencyKey: key }, staff1)));
+    const different = await Promise.all(['review-different-001', 'review-different-002'].map(key => demoTopup(base, { ...body, idempotencyKey: key }, staff1)));
     assert.deepEqual(different.map(result => result.response.status), [201, 201]);
     assert.equal(running.store.getAccount('demo-account').tl_balance_cents, 3000);
-    await post('/phase1/api/topups', { ...body, idempotencyKey: 'review-other-user-001' }, staff2);
+    await demoTopup(base, { ...body, idempotencyKey: 'review-other-user-001' }, staff2);
     const url = '/phase1/api/demo/topups/recorded';
     assert.equal((await jsonRequest(base, url)).response.status, 401);
     const own = await jsonRequest(base, url, {}, staff1);
@@ -991,10 +1000,69 @@ test('server demo intent survives restart, binds owner and payload, and two clie
     assert.equal((await post(execute, { intentId: secondBody.idempotencyKey }, staffA)).response.status, 201);
     assert.equal(running.store.getAccount('demo-account').tl_balance_cents, 2000);
     const legacyBody = { ...body, idempotencyKey: 'topup-intent-legacy-001' };
-    assert.equal((await post('/phase1/api/topups', legacyBody, staffA)).response.status, 201);
+    const staffId = (await jsonRequest(base, '/phase1/api/state', {}, staffA)).data.user.id;
+    running.store.topUp({ accountId: legacyBody.accountId, cardUid: legacyBody.cardUid, amountCents: 1000, idempotencyKey: legacyBody.idempotencyKey, actorUserId: staffId });
     const migrated = await post(prepare, legacyBody, staffA);
     assert.equal(migrated.data.intent.status, 'completed');
     assert.equal((await post(execute, { intentId: legacyBody.idempotencyKey }, staffA)).data.duplicate, true);
     assert.equal(running.store.getAccount('demo-account').tl_balance_cents, 3000);
+  } finally { await running.close(); }
+});
+
+test('direct demo API requires intent for new topups but safely confirms old recorded requests', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencredit-intent-required-'));
+  const databasePath = path.join(dir, 'demo.sqlite');
+  let running = startServer({ host: '127.0.0.1', port: 0, databasePath });
+  await new Promise(resolve => running.server.once('listening', resolve));
+  let base = `http://127.0.0.1:${running.server.address().port}`;
+  const post = (url, body, cookie) => jsonRequest(base, url, { method: 'POST', body: JSON.stringify(body) }, cookie);
+  try {
+    const admin = (await post('/phase1/api/setup', { username: 'admin', password: 'correct horse battery staple' })).cookie;
+    await post('/phase1/api/admin/users', { username: 'staff', password: 'staff password 1', role: 'staff' }, admin);
+    const staff = (await post('/phase1/api/auth/login', { username: 'staff', password: 'staff password 1' })).cookie;
+    const actor = (await jsonRequest(base, '/phase1/api/state', {}, staff)).data.user.id;
+    const route = '/phase1/api/topups';
+    const body = { accountId: 'demo-account', cardUid: 'DEMO-0001', amountTl: '10', idempotencyKey: 'topup-no-intent-001' };
+    const rejected = await Promise.all([post(route, body, staff), post(route, { ...body, idempotencyKey: 'topup-no-intent-002' }, staff)]);
+    assert.ok(rejected.every(result => result.response.status === 409 && result.data.error === 'intent_required'));
+    assert.equal(running.store.getAccount('demo-account').tl_balance_cents, 0);
+    assert.equal(running.store.summary().ledger_count, 0);
+    const intent = { ...body, idempotencyKey: 'topup-required-intent-001' };
+    assert.equal((await post('/phase1/api/demo/topup-intents', intent, staff)).response.status, 201);
+    assert.equal((await post(route, { ...intent, amountTl: '11' }, staff)).response.status, 409);
+    assert.equal((await post(route, intent, admin)).response.status, 409);
+    const same = await Promise.all([post(route, intent, staff), post('/phase1/api/demo/topup-intents/execute', { intentId: intent.idempotencyKey }, staff)]);
+    assert.deepEqual(same.map(result => result.response.status).sort(), [200, 201]);
+    assert.equal(same[0].data.entryId, same[1].data.entryId);
+    assert.equal(running.store.getAccount('demo-account').tl_balance_cents, 1000);
+    const second = { ...intent, idempotencyKey: 'topup-required-intent-002' };
+    assert.equal((await post('/phase1/api/demo/topup-intents', second, staff)).response.status, 201);
+    assert.equal((await post(route, second, staff)).response.status, 201);
+    assert.equal(running.store.getAccount('demo-account').tl_balance_cents, 2000);
+    const legacy = { ...body, idempotencyKey: 'topup-legacy-recorded-001' };
+    const old = running.store.topUp({ accountId: legacy.accountId, cardUid: legacy.cardUid, amountCents: 1000, idempotencyKey: legacy.idempotencyKey, actorUserId: actor });
+    await running.close();
+    running = startServer({ host: '127.0.0.1', port: 0, databasePath });
+    await new Promise(resolve => running.server.once('listening', resolve));
+    base = `http://127.0.0.1:${running.server.address().port}`;
+    const confirmed = await post(route, legacy, staff);
+    assert.equal(confirmed.response.status, 200);
+    assert.equal(confirmed.data.duplicate, true);
+    assert.equal(confirmed.data.entryId, old.entryId);
+    assert.equal((await post(route, legacy, admin)).response.status, 403);
+    assert.equal((await post(route, { ...legacy, amountTl: '11' }, staff)).response.status, 409);
+    const { DatabaseSync } = require('node:sqlite');
+    const db = new DatabaseSync(databasePath);
+    const saved = db.prepare('SELECT response_json FROM idempotency_keys WHERE idempotency_key = ?').get(legacy.idempotencyKey).response_json;
+    const broken = { ...JSON.parse(saved), balanceAfterCents: 99999 };
+    db.prepare('UPDATE idempotency_keys SET response_json = ? WHERE idempotency_key = ?').run(JSON.stringify(broken), legacy.idempotencyKey);
+    assert.equal((await post(route, legacy, staff)).data.error, 'topup_history_inconsistent');
+    assert.equal((await post('/phase1/api/demo/topup-intents', legacy, staff)).data.error, 'topup_history_inconsistent');
+    db.prepare('UPDATE idempotency_keys SET response_json = ? WHERE idempotency_key = ?').run('{', legacy.idempotencyKey);
+    assert.equal((await post(route, legacy, staff)).data.error, 'idempotency_corrupt');
+    db.prepare('UPDATE idempotency_keys SET response_json = ? WHERE idempotency_key = ?').run(saved, legacy.idempotencyKey);
+    db.close();
+    assert.equal(running.store.getAccount('demo-account').tl_balance_cents, 3000);
+    assert.equal(running.store.summary().ledger_count, 3);
   } finally { await running.close(); }
 });

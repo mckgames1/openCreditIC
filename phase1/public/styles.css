@@ -52,6 +52,7 @@ button:disabled { cursor: not-allowed; opacity: .45; }
 .simulator-layout { display: grid; grid-template-columns: 180px minmax(0, 1fr); gap: 18px; align-items: center; }
 .device-screen { aspect-ratio: 128 / 160; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 14px; padding: 18px; border: 8px solid #202d37; border-radius: 18px; color: #f7fbff; background: #1b526a; text-align: center; font-weight: 900; letter-spacing: .06em; }
 .device-screen small { color: #a9d5e5; font-size: .62rem; letter-spacing: 0; }
+.screen-detail { margin-top: 12px; font-size: .75rem; letter-spacing: 0; }
 .led { width: 15px; height: 15px; border-radius: 50%; background: #91a1ad; box-shadow: 0 0 0 4px #e6edf3; }
 .led.green { background: #13a05d; box-shadow: 0 0 0 4px #d5f3e2; }
 .led.red { background: #d83b31; box-shadow: 0 0 0 4px #fae0de; }

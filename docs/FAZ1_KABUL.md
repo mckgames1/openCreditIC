@@ -13,6 +13,7 @@ Kaynak: `MCK_CARD_CODEX_BASLANGIC(1).txt`, bölüm 10. Durum 2026-11-06; yalnız
 - Mevcut demo hesaba birden fazla sanal kart bağlanabilir; ortak bakiye ve tekrar istek test edildi. Bu, fiziksel kart kayıt akışı değildir: `web/views/home.pug`, `phase1/test/http.test.js`.
 - Yönetici Pug ekranında cihaz bazlı kart çekme ve ödeme bekleme sürelerini ayarlayabilir; iki sanal cihaz, kısa çekilme, başlayan bekleme ve yetki demo API'sinde test edildi.
 - Sanal ekran, kart yaklaştırma/tutma/çekme, komut geçmişi ve basit tahsilat/harcama/bakiye: `web/views/home.pug`, `phase1/public/`.
+- Simülatör ekranı fiyat, işlem, onay, kalan bakiye, yetersiz bakiye ve bağlantı kesik mesajlarını gösterir. Bağlantı kesik seçeneği yerel simülasyondur; gerçek ağ kesintisi yapılmadı.
 
 ## Kısmi
 

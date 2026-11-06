@@ -27,6 +27,23 @@ function idempotency(prefix) { return `${prefix}-${crypto.randomUUID()}`; }
 function selectedCard() { return $('#sim-card-select').value || 'DEMO-0001'; }
 function selectedMachine() { return $('#sim-machine-select').value || 'DEMO-MACHINE'; }
 
+function screen(mode, detail = '') {
+  const messages = {
+    waiting: 'KARTINIZI OKUTUN', processing: 'İŞLEM YAPILIYOR',
+    ready: 'KART OKUNDU', held: 'KARTI ÇEKİN', success: 'ÖDEME ONAYLANDI',
+    insufficient: 'YETERSİZ BAKİYE', invalid: 'GEÇERSİZ / ENGELLİ KART',
+    offline: 'MERKEZ BAĞLANTISI YOK', error: 'İŞLEM TAMAMLANAMADI'
+  };
+  const label = $('#screen-state');
+  label.replaceChildren();
+  const title = document.createElement('div');
+  title.textContent = messages[mode];
+  label.append(title);
+  if (detail) { const line = document.createElement('div'); line.className = 'screen-detail'; line.textContent = detail; label.append(line); }
+  const color = mode === 'success' ? 'green' : ['insufficient', 'invalid', 'offline', 'error'].includes(mode) ? 'red' : 'off';
+  $('#sim-led').className = `led ${color}`;
+}
+
 async function loadSetup() {
   const data = await api('/api/setup/status');
   $('#setup-card').hidden = !data.setupRequired;
@@ -95,10 +112,11 @@ function render(data) {
 }
 
 function renderSimulator(simulator) {
+  if ($('#sim-connection').value === 'offline') { screen('offline'); return; }
   const present = Boolean(simulator.present);
   const latched = Boolean(simulator.payment_latched);
-  $('#sim-led').className = `led ${latched ? 'red' : present ? 'green' : 'off'}`;
-  $('#screen-state').innerHTML = latched ? 'KARTI<br>ÇEKİN' : present ? 'İŞLEM<br>HAZIR' : 'KARTINIZI<br>OKUTUN';
+  const machine = state.data?.machines.find(item => item.id === selectedMachine());
+  screen(latched ? 'held' : present ? 'ready' : 'waiting', !present && machine ? `Oyun: ${money(machine.price_cents)}` : '');
   $('#sim-message').textContent = latched ? 'Yeni ödeme için kartı çekip bekleyin.' : present ? 'Kart simülatörde tutuluyor.' : 'Kartı yaklaştırıp tutun.';
 }
 
@@ -115,6 +133,11 @@ async function refresh() {
 }
 
 async function runAction(action, cardUid = selectedCard()) {
+  if ($('#sim-connection').value === 'offline') {
+    screen('offline');
+    showNotice('Merkez bağlantısı kesik: kart isteği gönderilmedi.', true);
+    return;
+  }
   try {
     const data = await api('/api/demo/simulator/card', { method: 'POST', body: JSON.stringify({ action, cardUid, machineId: selectedMachine() }) });
     renderSimulator(data.simulator);
@@ -146,6 +169,10 @@ $('#login-form').addEventListener('submit', async (event) => {
 $('#logout').addEventListener('click', async () => { await api('/api/auth/logout', { method: 'POST' }); location.reload(); });
 $('#refresh').addEventListener('click', refresh);
 $('#sim-machine-select').addEventListener('change', refresh);
+$('#sim-connection').addEventListener('change', () => {
+  if ($('#sim-connection').value === 'offline') screen('offline');
+  else if (state.data) renderSimulator(state.data.simulator);
+});
 $('#approach').addEventListener('click', () => runAction('approach'));
 $('#hold').addEventListener('click', () => runAction('hold'));
 $('#remove').addEventListener('click', () => runAction('remove'));
@@ -162,6 +189,11 @@ $('#topup-form').addEventListener('submit', async (event) => {
 });
 
 async function sendPayment(key, cardOverride, machineOverride) {
+  if ($('#sim-connection').value === 'offline') {
+    screen('offline');
+    showNotice('Merkez bağlantısı kesik: ödeme isteği gönderilmedi.', true);
+    return;
+  }
   let pending = JSON.parse(sessionStorage.getItem('demoPendingPayment') || 'null');
   if (!key && pending) { key = pending.key; }
   const cardUid = pending && pending.key === key ? pending.cardUid : (cardOverride || selectedCard());
@@ -169,12 +201,14 @@ async function sendPayment(key, cardOverride, machineOverride) {
   key ||= idempotency('payment');
   sessionStorage.setItem('demoPendingPayment', JSON.stringify({ key, cardUid, machineId }));
   $('#pay').disabled = true;
+  screen('processing');
   try {
     const data = await api('/api/demo/payment', { method: 'POST', body: JSON.stringify({ machineId, cardUid, idempotencyKey: key }) });
     if (!data.approved) {
       sessionStorage.removeItem('demoPendingPayment');
       showNotice(`Ödeme reddedildi: yetersiz bakiye. Kalan: ${data.balanceAfterTl}.`, true);
       await refresh();
+      screen('insufficient', `Bakiye: ${money(data.balanceAfterCents)}`);
       return;
     }
     state.lastPaymentKey = key;
@@ -186,9 +220,11 @@ async function sendPayment(key, cardOverride, machineOverride) {
     if (data.pulseCommandId) { $('#pulse-info').textContent = `Komut: ${data.pulseCommandId} · ${data.priceTl || money(data.priceCents)} · pending`; $('#retry-pulse').disabled = false; }
     showNotice(data.duplicate ? 'Aynı istek tekrarlandı; ikinci düşüm veya pulse oluşturulmadı.' : `Ödeme onaylandı. Kalan: ${data.balanceAfterTl}.`);
     await refresh();
+    screen('success', `Düşülen: ${money(data.priceCents)} · Kalan: ${money(data.balanceAfterCents)}`);
   } catch (error) {
     if (error.status >= 400 && error.status < 500) sessionStorage.removeItem('demoPendingPayment');
     showNotice(error.status >= 400 && error.status < 500 ? error.message : `${error.message} Aynı ödeme isteğini tekrar deneyin.`, true);
+    screen(!error.status ? 'offline' : error.status === 403 || error.status === 404 ? 'invalid' : error.status === 409 ? 'held' : 'error');
   }
   finally { $('#pay').disabled = false; }
 }

@@ -24,6 +24,8 @@ Ana sayfada seçili demo hesaba başka sanal UID bağlanabilir; kartlar aynı ba
 
 Yönetici ana sayfada demo makine oluşturup kart çekilme ve ödeme bekleme sürelerini cihaz bazında ayarlayabilir. Sürümler makine ayar sürümüne eklenir; başlamış beklemeler ayar değişikliğiyle kısalmaz. Chromium'da iki cihaz için ayar ve sanal cihaz seçimi; HTTP testinde kısa çekilme, bekleme, sürüm, yetki ve yeniden başlatma doğrulandı.
 
+Simülatör ekranı bekleme fiyatını, işlem göstergesini, onay tutarı ve bakiyeyi, yetersiz bakiye ve bağlantı kesik durumlarını gösterir. Chromium'da onay, yetersiz bakiye ve yerel bağlantı kesik simülasyonunda bakiye/komutun artmadığı doğrulandı. Bu gerçek ağ kesintisi veya ekran donanımı testi değildir.
+
 Şema 3 geçişi: Mevcut demo veritabanında geçiş öncesi aynı dizine `demo.sqlite.before-v3-<benzersiz>.sqlite` adlı ayrı tutarlı yedek alınır; ortak süreler mevcut cihazlara kopyalanır, eski veriler silinmez. Geçişten önce eski demo sunucusunu durdurun. Eski sürümde başlamış beklemenin özgün ayarı saklanmadığı için geçiş anındaki ortak değer kullanılır. Yedekleme başarısızsa geçiş başlamaz. Eski ortak ayar API'si demo modunda 410 döndürür; yeni ayarlar cihaz yolunda yapılır. Legacy JSON modu bu geçişe dahil değildir.
 
 Ana Pug ekranındaki demo yüklemede yanıt kaybı sonrası aynı sekmede sayfa yenilenirse özgün istek kimliği ve içeriğiyle doğrulama yapılır; Chromium'da sunucu yanıtı kesilerek tek 37 TL yükleme doğrulandı. Sekme kapatılması, farklı tarayıcı veya diğer demo yükleme ekranı için bu kurtarma garantisi yoktur.

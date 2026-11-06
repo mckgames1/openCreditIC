@@ -5,11 +5,11 @@ head
     meta(name='description', content='Arcade IC Card Management')
     meta(name='author', content='Yukimi Kazari')
     meta(name="apple-mobile-web-app-capable" content="yes")
-    meta(name="apple-mobile-web-app-title" content="OCI")
+    meta(name="apple-mobile-web-app-title" content=(typeof demoMode !== 'undefined' && demoMode ? 'mck_mifare' : 'OCI'))
     meta(name="apple-mobile-web-app-status-bar-style" content="black-translucent")
-    meta(content="OCI" property="og:title")
+    meta(content=(typeof demoMode !== 'undefined' && demoMode ? 'mck_mifare' : 'OCI') property="og:title")
     meta(content="Arcade IC Card Management" property="og:description")
-    meta(content=`${config.arcade_name} OCI` property="og:site_name")
+    meta(content=(typeof demoMode !== 'undefined' && demoMode ? 'mck_mifare' : `${config.arcade_name} OCI`) property="og:site_name")
     link(rel='apple-touch-icon' sizes='57x57' href='/static/img/apple-icon-57x57.png')
     link(rel='apple-touch-icon' sizes='60x60' href='/static/img/apple-icon-60x60.png')
     link(rel='apple-touch-icon' sizes='72x72' href='/static/img/apple-icon-72x72.png')
@@ -29,7 +29,7 @@ head
     meta(name='theme-color' content='#002fc9')
 
 
-    title #{config.arcade_name} OCI
+    title #{config.arcade_name}#{typeof demoMode !== 'undefined' && demoMode ? '' : ' OCI'}
 
     link(rel='stylesheet', href='/static/css/bootstrap.min.css')
     link(rel='stylesheet', href='/static/css/fontawesome.min.css')

@@ -135,7 +135,7 @@ function createApp({ store, standalone = true }) {
   }));
 
   app.get('/home', (_req, res) => res.render('home', {
-    demoMode: true, config: { arcade_name: 'openCreditIC Demo', show_delete_actions: false },
+    demoMode: true, config: { arcade_name: 'mck_mifare', show_delete_actions: false },
     pos_terminals: [], machine_dispense: [], db: {}
   }));
 
@@ -397,7 +397,7 @@ function startServer({ host = process.env.PHASE1_HOST || DEFAULT_HOST, port = Nu
   app.get('/', (_req, res) => res.redirect('/phase1'));
   app.use('/phase1', mountedApp);
   app.use('/', mountedApp);
-  const server = app.listen(port, host, () => console.log(`openCreditIC Faz 1 demo: http://${host}:${port}/phase1`));
+  const server = app.listen(port, host, () => console.log(`mck_mifare Faz 1 demo: http://${host}:${port}/phase1`));
   return { app, server, store, close: () => new Promise((resolve, reject) => server.close((error) => { store.close(); error ? reject(error) : resolve(); })) };
 }
 

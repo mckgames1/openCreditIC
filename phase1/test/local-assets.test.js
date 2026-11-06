@@ -49,6 +49,7 @@ test('integrated demo pages serve their declared assets locally', async (t) => {
     const response = await fetch(`${origin}${page}`);
     assert.equal(response.status, 200);
     const html = await response.text();
+    assert.match(html, /<title>mck_mifare(?: — Faz 1 Demo)?<\/title>/);
     for (const tag of html.matchAll(/<(?:script|link|img)\b[^>]*>/gi)) {
       const attribute = tag[0].match(/\b(?:src|href)\s*=\s*['"]([^'"]+)['"]/i);
       if (attribute) await checkAsset(attribute[1], `${origin}${page}`);

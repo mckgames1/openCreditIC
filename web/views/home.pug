@@ -40,17 +40,43 @@ head
     script(src='/static/js/bootstrap.min.js')
     script(src='/static/js/sideloader.js')
     if typeof demoMode !== 'undefined' && demoMode
+        link(rel='stylesheet' href='/static/css/demo-panel.css')
         style.
             .demo-hidden, #findUserModal, #showUserModel, #showFreePlayModel, #headerDepositFreeplay, #collapseDepositFreeplay, #depositAccordion, #newCardModal #initialBalance, #newCardModal label[for='initialBalance'], #newCardModal #userID, #newCardModal label[for='userID'], #newCardModal #userContact, #newCardModal label[for='userContact'], #newCardModal #userNotes, #newCardModal label[for='cardName'] ~ input:not(#cardNum) { display: none !important; }
         script(src='/phase1/pending-topup.js' defer)
         script(src='/static/js/demo-home.js' defer)
-body.bg-dark.text-white
+        script(src='/static/js/demo-panel.js' defer)
+body.bg-dark.text-white(class=(typeof demoMode !== 'undefined' && demoMode ? 'demo-panel' : ''))
     div.background
     div.background-overlay
     div.container.text-center
         h1.mt-5 #{config.arcade_name}
         if typeof demoMode !== 'undefined' && demoMode
             div.alert.alert-warning.mt-3.text-dark DEMO / GERÇEK DONANIM DEĞİL — Sanal kart ve sahte bakiye
+            nav.demo-navigation(aria-label='Demo bölümleri')
+                a(href='#demoLogin') Giriş ve kart
+                a(href='#demoHistory') Son hareketler
+                a(href='#demoAdmin') Yönetici işlemleri
+                a(href='/phase1/') Sanal makine
+            section.demo-quick-actions(aria-label='Hızlı işlemler')
+                div
+                    p.demo-eyebrow GÜNLÜK İŞLEMLER
+                    h2 Demo işletme paneli
+                    p Kart seçin, yükleme yapın veya sanal makineyi açın.
+                div.demo-quick-buttons
+                    button.btn.btn-primary(type='button' data-toggle='modal' data-target='#newCardModal') Hesap ve kart oluştur
+                    button.btn.btn-outline-primary(type='button' data-toggle='modal' data-target='#depositModal') Demo bakiye yükle
+                    a.btn.btn-outline-primary(href='/phase1/') Sanal makine
+            section#demoOverview.demo-overview(aria-label='Demo işlem özeti' hidden)
+                article
+                    h2 Demo genel özeti
+                    p#demoOverviewTotals Henüz veri yok.
+                article
+                    h2 Seçili dönem
+                    p#demoOverviewPeriod Henüz veri yok.
+                article
+                    h2 Cihazlara göre demo harcama
+                    p#demoOverviewMachines Henüz veri yok.
             div.card.text-dark.p-3.mt-3
                 form#demoLogin
                     label(for='demoUsername') Kullanıcı adı

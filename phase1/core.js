@@ -683,11 +683,16 @@ function createStore(databasePath, options = {}) {
     return { ...row, accountCount: one('SELECT COUNT(*) AS count FROM accounts').count, cardCount: one('SELECT COUNT(*) AS count FROM cards').count, machineCount: one('SELECT COUNT(*) AS count FROM machines').count, pulseCount: one('SELECT COUNT(*) AS count FROM pulse_commands').count };
   }
 
-  function periodReport(period, now = new Date()) {
+  function periodReport(period, now = new Date(), selectedDate) {
     if (!['day', 'week', 'month', 'year'].includes(period)) throw new DomainError('invalid_period', 'Geçersiz rapor dönemi.');
-    // Current Istanbul civil time is UTC+03:00; reports cover the current calendar period only.
-    const local = new Date(now.getTime() + 3 * 60 * 60 * 1000);
-    const start = new Date(Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), local.getUTCDate()));
+    const formatter = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Istanbul', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' });
+    const parts = date => Object.fromEntries(formatter.formatToParts(date).filter(p => p.type !== 'literal').map(p => [p.type, p.value]));
+    const localStamp = date => { const p = parts(date); return `${p.year}-${p.month}-${p.day} ${p.hour}:${p.minute}:${p.second}`; };
+    const selected = selectedDate === undefined ? localStamp(now).slice(0, 10) : selectedDate;
+    if (typeof selected !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(selected)) throw new DomainError('invalid_date', 'Tarih YYYY-AA-GG biçiminde olmalıdır.');
+    const [year, month, day] = selected.split('-').map(Number);
+    const start = new Date(Date.UTC(year, month - 1, day));
+    if (year < 1900 || year > 9998 || start.getUTCFullYear() !== year || start.getUTCMonth() !== month - 1 || start.getUTCDate() !== day) throw new DomainError('invalid_date', 'Geçerli bir tarih seçin (1900–9998).');
     if (period === 'week') start.setUTCDate(start.getUTCDate() - (start.getUTCDay() + 6) % 7);
     if (period === 'month' || period === 'year') start.setUTCDate(1);
     if (period === 'year') start.setUTCMonth(0);
@@ -697,16 +702,43 @@ function createStore(databasePath, options = {}) {
     if (period === 'month') end.setUTCMonth(end.getUTCMonth() + 1);
     if (period === 'year') end.setUTCFullYear(end.getUTCFullYear() + 1);
     const stamp = date => date.toISOString().slice(0, 19).replace('T', ' ');
-    const params = { $start: stamp(start), $end: stamp(end), $now: now.toISOString() };
-    const where = "datetime(l.created_at, '+03:00') >= $start AND datetime(l.created_at, '+03:00') < $end AND l.created_at <= $now";
-    const totals = one(`SELECT COALESCE(SUM(CASE WHEN l.entry_type='topup' THEN l.amount_cents ELSE 0 END),0) AS topups_cents,
-      COALESCE(SUM(CASE WHEN l.entry_type='game_charge' THEN -l.amount_cents ELSE 0 END),0) AS game_charges_cents,
-      COALESCE(SUM(CASE WHEN l.entry_type='correction' THEN l.amount_cents ELSE 0 END),0) AS corrections_cents
-      FROM ledger_entries l WHERE ${where}`, params);
-    const format = period === 'day' ? '%Y-%m-%d %H:00' : period === 'year' ? '%Y-%m' : '%Y-%m-%d';
-    const rows = many(`SELECT strftime('${format}', l.created_at, '+03:00') AS bucket, SUM(-l.amount_cents) AS cents
-      FROM ledger_entries l WHERE ${where} AND l.entry_type='game_charge' GROUP BY bucket`, params);
-    const byBucket = new Map(rows.map(row => [row.bucket, row.cents]));
+    // Convert each civil midnight with IANA timezone rules, including historical DST.
+    const midnightUtc = civil => {
+      const target = civil.getTime();
+      let instant = target;
+      for (let i = 0; i < 5; i++) {
+        const p = parts(new Date(instant));
+        const actual = Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour, +p.minute, +p.second);
+        const next = instant + target - actual;
+        if (next === instant) break;
+        instant = next;
+      }
+      if (localStamp(new Date(instant)) !== stamp(civil)) throw new DomainError('invalid_date', 'Bu dönemin yerel saat sınırı belirlenemedi.');
+      return new Date(instant).toISOString();
+    };
+    const params = { $start: midnightUtc(start), $end: midnightUtc(end), $now: now.toISOString() };
+    const rows = many(`SELECT l.entry_type, l.amount_cents, l.created_at, p.machine_id, p.status, m.name
+      FROM ledger_entries l LEFT JOIN pulse_commands p ON l.idempotency_key = p.idempotency_key || ':ledger'
+      LEFT JOIN machines m ON m.id = p.machine_id
+      WHERE l.created_at >= $start AND l.created_at < $end AND l.created_at <= $now`, params);
+    const totals = { topups_cents: 0, game_charges_cents: 0, corrections_cents: 0 };
+    const commandStatus = { succeeded: 0, ambiguous: 0, pending: 0, failed: 0, missing: 0 };
+    const byBucket = new Map();
+    const byMachine = new Map();
+    for (const row of rows) {
+      if (row.entry_type === 'topup') totals.topups_cents += row.amount_cents;
+      if (row.entry_type === 'correction') totals.corrections_cents += row.amount_cents;
+      if (row.entry_type !== 'game_charge') continue;
+      const cents = -row.amount_cents;
+      totals.game_charges_cents += cents;
+      commandStatus[row.status || 'missing'] += cents;
+      const local = localStamp(new Date(row.created_at));
+      const key = period === 'day' ? local.slice(0, 13) + ':00' : period === 'year' ? local.slice(0, 7) : local.slice(0, 10);
+      byBucket.set(key, (byBucket.get(key) || 0) + cents);
+      const machineId = row.machine_id || null;
+      if (!byMachine.has(machineId)) byMachine.set(machineId, { machine_id: machineId, name: row.name || 'Cihazı belirlenemeyen', cents: 0 });
+      byMachine.get(machineId).cents += cents;
+    }
     const buckets = [];
     for (const cursor = new Date(start); cursor < end;) {
       const key = period === 'day' ? stamp(cursor).slice(0, 13) + ':00' : period === 'year' ? stamp(cursor).slice(0, 7) : stamp(cursor).slice(0, 10);
@@ -715,11 +747,8 @@ function createStore(databasePath, options = {}) {
       else if (period === 'year') cursor.setUTCMonth(cursor.getUTCMonth() + 1);
       else cursor.setUTCDate(cursor.getUTCDate() + 1);
     }
-    const machines = many(`SELECT p.machine_id, COALESCE(m.name, 'Cihazı belirlenemeyen') AS name, SUM(-l.amount_cents) AS cents
-      FROM ledger_entries l LEFT JOIN pulse_commands p ON l.idempotency_key = p.idempotency_key || ':ledger'
-      LEFT JOIN machines m ON m.id = p.machine_id
-      WHERE ${where} AND l.entry_type='game_charge' GROUP BY p.machine_id, m.name ORDER BY cents DESC, p.machine_id`, params);
-    return { period, timezone: 'Europe/Istanbul', start: stamp(start), end: stamp(end), totals, buckets, machines,
+    const machines = [...byMachine.values()].sort((a, b) => b.cents - a.cents || String(a.machine_id).localeCompare(String(b.machine_id)));
+    return { period, selectedDate: selected, timezone: 'Europe/Istanbul', start: stamp(start), end: stamp(end), totals, commandStatus, buckets, machines,
       balance_cents: one('SELECT COALESCE(SUM(tl_balance_cents),0) AS cents FROM accounts').cents };
   }
 

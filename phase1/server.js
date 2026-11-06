@@ -282,7 +282,7 @@ function createApp({ store, standalone = true }) {
 
   app.get('/api/report/period', requireAuth, requireRole('admin'), handle(async (req, res) => {
     res.set('Cache-Control', 'no-store');
-    res.json({ ok: true, report: store.periodReport(req.query.period || 'day') });
+    res.json({ ok: true, report: store.periodReport(req.query.period || 'day', new Date(), req.query.date) });
   }));
 
   app.get(mountPath, (_req, res) => res.render('phase1'));

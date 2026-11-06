@@ -125,3 +125,44 @@ test('period reports separate topups, spending and current balance in Istanbul c
     assert.throws(() => store.periodReport('invalid'), /dönemi/);
   } finally { store.close(); }
 });
+
+test('historical reports use Istanbul DST boundaries and expose ambiguous commands separately', () => {
+  const { store } = freshStore();
+  const { DatabaseSync } = require('node:sqlite');
+  try {
+    store.topUp({ accountId: 'demo-account', amountCents: 20000, idempotencyKey: 'historic-topup-001' });
+    const payments = [];
+    for (let i = 0; i < 4; i++) payments.push(store.pay({ machineId: 'DEMO-MACHINE', cardUid: 'DEMO-0001', idempotencyKey: `historic-pay-00${i}` }));
+    store.simulatePulse(payments[1].pulseCommandId, 'response_lost');
+    store.simulatePulse(payments[2].pulseCommandId, 'succeeded');
+    store.simulatePulse(payments[3].pulseCommandId, 'failed');
+    const db = new DatabaseSync(store.dbPath);
+    const update = db.prepare('UPDATE ledger_entries SET created_at = ? WHERE idempotency_key = ?');
+    ['2016-03-26T21:59:59.000Z', '2016-03-26T22:00:00.000Z', '2016-03-27T20:59:59.000Z', '2016-03-27T21:00:00.000Z'].forEach((date, i) => update.run(date, `historic-pay-00${i}:ledger`));
+    db.close();
+    const now = new Date('2026-11-06T12:00:00.000Z');
+    const day = store.periodReport('day', now, '2016-03-27');
+    assert.equal(day.start, '2016-03-27 00:00:00');
+    assert.equal(day.end, '2016-03-28 00:00:00');
+    assert.equal(day.totals.game_charges_cents, 5000);
+    assert.equal(day.commandStatus.ambiguous, 2500);
+    assert.equal(day.commandStatus.succeeded, 2500);
+    assert.equal(day.commandStatus.failed, 0);
+    assert.equal(day.buckets[0].cents, 2500);
+    assert.equal(day.buckets[23].cents, 2500);
+    assert.equal(store.periodReport('week', now, '2016-03-27').start, '2016-03-21 00:00:00');
+    assert.equal(store.periodReport('month', now, '2016-03-27').totals.game_charges_cents, 10000);
+    assert.equal(store.periodReport('year', now, '2016-03-27').totals.game_charges_cents, 10000);
+    assert.equal(store.periodReport('day', now, '2016-03-28').commandStatus.failed, 2500);
+    assert.throws(() => store.periodReport('day', now, '2026-02-30'), /tarih/);
+    assert.equal(store.periodReport('week', now, '2026-01-01').start, '2025-12-29 00:00:00');
+    const db2 = new DatabaseSync(store.dbPath);
+    const update2 = db2.prepare('UPDATE ledger_entries SET created_at = ? WHERE idempotency_key = ?');
+    update2.run('2015-11-08T00:30:00.000Z', 'historic-pay-001:ledger');
+    update2.run('2015-11-08T01:30:00.000Z', 'historic-pay-002:ledger');
+    db2.close();
+    const repeated = store.periodReport('day', now, '2015-11-08');
+    assert.equal(repeated.buckets[3].cents, 5000);
+    assert.equal(repeated.commandStatus.ambiguous, 2500);
+  } finally { store.close(); }
+});

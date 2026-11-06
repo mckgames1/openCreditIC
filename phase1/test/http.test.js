@@ -553,11 +553,15 @@ test('period report is admin-only and validates period', async () => {
     assert.equal((await jsonRequest(base, '/phase1/api/report/period?period=day')).response.status, 401);
     assert.equal((await jsonRequest(base, '/phase1/api/report/period?period=day', {}, staff)).response.status, 403);
     assert.equal((await jsonRequest(base, '/phase1/api/report/period?period=bad', {}, admin)).response.status, 400);
+    assert.equal((await jsonRequest(base, '/phase1/api/report/period?period=day&date=2026-02-30', {}, admin)).response.status, 400);
+    assert.equal((await jsonRequest(base, '/phase1/api/report/period?period=day&date=2020-01-01', {}, staff)).response.status, 403);
     for (const period of ['day', 'week', 'month', 'year']) {
       const result = await jsonRequest(base, `/phase1/api/report/period?period=${period}`, {}, admin);
       assert.equal(result.response.status, 200);
       assert.equal(result.data.report.timezone, 'Europe/Istanbul');
       assert.equal(result.response.headers.get('cache-control'), 'no-store');
+      const historic = await jsonRequest(base, `/phase1/api/report/period?period=${period}&date=2020-01-01`, {}, admin);
+      assert.equal(historic.data.report.selectedDate, '2020-01-01');
     }
   } finally { await running.close(); }
 });

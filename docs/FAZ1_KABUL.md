@@ -20,7 +20,7 @@ Kaynak: `MCK_CARD_CODEX_BASLANGIC(1).txt`, bölüm 10. Durum 2026-11-06; yalnız
 
 - Yönetim arayüzünün kayıt, yükleme, makine ayarları ve özet bölümleri mevcut Pug ana sayfasında; simülatör ve komut incelemesi ayrı demo görünümündedir.
 - Yönetici Pug ana sayfasında demo personeli oluşturabilir, erişimini durdurup açabilir ve parolasını yeniden doğrulayarak 10 dakika geçerli tek kullanımlık demo yenileme kodu oluşturabilir. Personel kendi yeni parolasını belirler; eski oturumlar sona erer. Bu yerel demo akışı üretim için doğrulanmış değildir.
-- Yönetici ana ekranında mevcut gün/hafta/ay/yıl için İstanbul saatli demo oyun harcaması grafiği ve cihaz dağılımı vardır; yükleme ve düzeltmeler ayrı, bakiye anlık gösterilir. Geçmiş dönem seçimi ve gerçek muhasebe raporu yoktur.
+- Yönetici ana ekranında seçilen tarih için gün/hafta/ay/yıl İstanbul saatli demo oyun harcaması grafiği ve cihaz dağılımı vardır; belirsiz sanal komut kesintileri ayrıca belirtilir. Yükleme ve düzeltmeler ayrı, bakiye anlık gösterilir. Gerçek gelir veya muhasebe raporu yoktur.
 - Belirsiz komut yönetici gerekçesiyle kaydedilir. Demo için yöneticinin gerekçeli artı/eksi bakiye düzeltmesi vardır; bu ayrı bir kayıttır, otomatik iade veya gerçek ödeme değildir (`phase1/core.js`, `phase1/server.js`).
 - Cihaz fiyat/pulse, bekleme ve demo LED ayarları sürümlü; işlem ve başlamış bekleme değerleri korunuyor. Uygulama durumu yalnız simülatör raporudur; gerçek cihaz ayar teslimi ve doğrulaması yoktur.
 - Yükleme tekrarı API'de idempotent; ana Pug ve simülatör ekranlarında aynı sekmedeki yanıt kaybı ve yenileme kurtarma akışı var. Sekme kapatma, tarayıcı kapanması ve farklı cihaz oturumları kapsanmaz.

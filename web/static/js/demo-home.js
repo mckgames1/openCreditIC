@@ -36,7 +36,7 @@
     const isAdmin = data.user.role === 'admin';
     if (!isAdmin) {
       reportRequest++;
-      for (const id of ['demoResetIssueResult', 'demoReportTotals', 'demoReportChart', 'demoReportMachines']) document.getElementById(id).replaceChildren();
+      for (const id of ['demoResetIssueResult', 'demoReportTotals', 'demoReportCommands', 'demoReportChart', 'demoReportMachines']) document.getElementById(id).replaceChildren();
     }
     document.getElementById('demoHistory').hidden = false;
     document.getElementById('demoHistoryScope').textContent = isAdmin ? 'Son 25 demo hareketi' : 'Son 25 kendi demo hareketiniz';
@@ -111,11 +111,14 @@
   async function refreshReport() {
     const request = ++reportRequest;
     try {
-      const data = await api('report/period?period=' + encodeURIComponent(document.getElementById('demoReportPeriod').value));
+      const date = document.getElementById('demoReportDate').value;
+      const data = await api('report/period?period=' + encodeURIComponent(document.getElementById('demoReportPeriod').value) + (date ? '&date=' + encodeURIComponent(date) : ''));
       if (request !== reportRequest) return;
       const report = data.report;
       const tl = cents => (cents / 100).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' TL';
-      document.getElementById('demoReportTotals').textContent = `Dönem yüklemesi: ${tl(report.totals.topups_cents)} · Dönem oyun harcaması: ${tl(report.totals.game_charges_cents)} · Dönem net düzeltmesi: ${tl(report.totals.corrections_cents)} · Şu anki toplam bakiye: ${tl(report.balance_cents)}`;
+      document.getElementById('demoReportTotals').textContent = `İstanbul dönemi: ${report.start} – ${report.end} (bitiş hariç) · Dönem yüklemesi: ${tl(report.totals.topups_cents)} · Dönem oyun harcaması: ${tl(report.totals.game_charges_cents)} · Dönem net düzeltmesi: ${tl(report.totals.corrections_cents)} · Şu anki toplam bakiye: ${tl(report.balance_cents)}`;
+      const status = report.commandStatus;
+      document.getElementById('demoReportCommands').textContent = `Sanal komut sonucu belirsiz kesinti: ${tl(status.ambiguous)} · Bekleyen: ${tl(status.pending)} · Başarısız: ${tl(status.failed)} · Komut kaydı bulunmayan: ${tl(status.missing)} · Sanal olarak başarılı: ${tl(status.succeeded)}`;
       const chart = document.getElementById('demoReportChart');
       chart.replaceChildren();
       const maximum = Math.max(1, ...report.buckets.map(item => item.cents));
@@ -140,12 +143,14 @@
     } catch (error) {
       if (request === reportRequest) {
         document.getElementById('demoReportTotals').textContent = 'Rapor yüklenemedi: ' + error.message;
+        document.getElementById('demoReportCommands').replaceChildren();
         document.getElementById('demoReportChart').replaceChildren();
         document.getElementById('demoReportMachines').replaceChildren();
       }
     }
   }
   document.getElementById('demoReportPeriod').addEventListener('change', refreshReport);
+  document.getElementById('demoReportDate').addEventListener('change', refreshReport);
   function showMachine() {
     const machine = machines.find(item => item.id === document.getElementById('demoMachine').value);
     if (!machine) return;

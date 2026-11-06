@@ -123,14 +123,18 @@ body.bg-dark.text-white
                 p#demoTotals
                 p.small Yükleme, harcama ve net düzeltme ayrıdır; toplam bakiye tüm demo hesaplarındadır.
                 h2.h5 Dönemsel demo oyun harcaması
-                p.small İstanbul saati; içinde bulunulan gün, Pazartesi başlayan hafta, ay veya yıl. Oyun harcaması onaylı demo bakiye kesintisidir; sanal komut sonucu belirsiz olanlar dahil edilir. Gerçek gelir değildir; yükleme ikinci kez gelir olarak eklenmez.
+                p.small İstanbul saati; seçilen tarihi içeren gün, Pazartesi başlayan hafta, ay veya yıl. Boş tarih bugün demektir. Oyun harcaması demo bakiye kesintisidir, gerçek gelir veya fiziksel kredi değildir; yükleme ikinci kez gelir olarak eklenmez.
                 label(for='demoReportPeriod') Dönem
                 select#demoReportPeriod.form-control
                     option(value='day') Günlük
                     option(value='week') Haftalık
                     option(value='month') Aylık
                     option(value='year') Yıllık
+                label.mt-2(for='demoReportDate') Tarih (geçmiş dönem seçimi)
+                input#demoReportDate.form-control(type='date' min='1900-01-01' max='9998-12-31')
                 p#demoReportTotals.mt-2(role='status')
+                p#demoReportCommands.small
+                p.small Komut durumları rapor açıldığı andaki sanal durumlardır; sonuç belirsiz veya başarısız olabilir ve fiziksel kredi kanıtı değildir. Saat değişiminde tekrar eden saatler aynı çubukta toplanır; atlanan saat sıfır gösterilir.
                 div#demoReportChart(aria-label='Dönemsel demo oyun harcaması grafiği')
                 h3.h6.mt-3 Cihaz bazında demo oyun harcaması
                 ul#demoReportMachines

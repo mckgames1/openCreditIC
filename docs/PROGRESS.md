@@ -8,6 +8,8 @@ Temel commit: `c96727c2d76d54179b67c1fcc34fc4cb1a8a5466`
 
 Faz 1 tamamlanmadı; yerel demo geliştirme aşamasındadır. `npm run phase1` mevcut sunucu girişini demo modunda başlatır, Pug görünümü sunar ve legacy route'ları kaydetmez. Normal `npm start` legacy modudur. Demo veritabanı `phase1-data/demo.sqlite` altında ayrıdır.
 
+`/phase1/home`, mevcut `home.pug` üzerindeki yükleme penceresini kullanır: oturum açıldıktan sonra demo kartının bakiyesi gösterilir ve yükleme SQLite API'sine gönderilir. Diğer eski ana sayfa işlemleri demo modunda uygulanmamıştır; mevcut simülatör ekranı ayrıca korunmaktadır. Tarayıcıda görsel etkileşim henüz test edilmedi.
+
 ## Test kanıtı
 
 `npm test` sonucu: **8 test geçti, 0 başarısız**.

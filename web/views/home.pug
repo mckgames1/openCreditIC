@@ -39,11 +39,26 @@ head
     script(src='/static/js/popper.min.js')
     script(src='/static/js/bootstrap.min.js')
     script(src='/static/js/sideloader.js')
+    if typeof demoMode !== 'undefined' && demoMode
+        style.
+            .demo-hidden, #newCardModal, #findUserModal, #showUserModel, #showFreePlayModel, #headerDepositFreeplay, #collapseDepositFreeplay, #depositAccordion { display: none !important; }
+        script(src='/static/js/demo-home.js' defer)
 body.bg-dark.text-white
     div.background
     div.background-overlay
     div.container.text-center
         h1.mt-5 #{config.arcade_name}
+        if typeof demoMode !== 'undefined' && demoMode
+            div.alert.alert-warning.mt-3.text-dark DEMO / GERÇEK DONANIM DEĞİL — Sanal kart ve sahte bakiye
+            div.card.text-dark.p-3.mt-3
+                form#demoLogin
+                    label(for='demoUsername') Kullanıcı adı
+                    input#demoUsername.form-control(required autocomplete='username')
+                    label(for='demoPassword') Parola
+                    input#demoPassword.form-control(type='password' required minlength='10' autocomplete='current-password')
+                    button#demoLoginButton.btn.btn-primary.mt-2(type='submit') Giriş yap / ilk yönetici oluştur
+                p#demoAccount.mt-3.mb-0 Giriş bekleniyor.
+                p#demoNotice(role='status')
         div.btn-group-vertical.mt-5.col-lg-7.rounded.center-menu
             div.w-100
                 .form-group
@@ -51,7 +66,7 @@ body.bg-dark.text-white
                         each machine in pos_terminals
                             option(value=machine[0]) #{(machine[1].name) ? machine[1].name : machine[0]}#{(machine[1].location) ? ' (' + machine[1].location + ')' : ''}
             div.btn-group.btn-group-lg.flex-column.flex-sm-row.bg-success.rounded
-                a.btn(href='#', data-toggle='modal', data-target='#newCardModal').py-4.col.text-white
+                a.btn(class=(typeof demoMode !== 'undefined' && demoMode ? 'demo-hidden' : '') href='#', data-toggle='modal', data-target='#newCardModal').py-4.col.text-white
                     div.d-flex.justify-content-center
                         div.d-flex.align-items-center.justify-content-center.pr-2
                             i.fas.fa-credit-card
@@ -61,7 +76,7 @@ body.bg-dark.text-white
                         div.d-flex.align-items-center.justify-content-center.pr-2
                             i.fas.fa-coins
                         span Deposit
-            div.btn-group.btn-group-lg.mt-2
+            div.btn-group.btn-group-lg.mt-2(class=(typeof demoMode !== 'undefined' && demoMode ? 'demo-hidden' : ''))
                 a.btn.btn-info.rounded-left.col.disabled(href='#')
                     div.d-flex.justify-content-center
                         div.d-flex.align-items-center.justify-content-center.pr-2
@@ -246,8 +261,8 @@ body.bg-dark.text-white
                             #collapseDepositCredits.collapse.show(aria-labelledby='headerDepositCredits' data-parent='#typeAccordion')
                                 .card-body
                                     .form-group
-                                        label(for='initialBalance') Credits:
-                                        input#depositBalance.form-control.form-control-lg(type='number', name='depositBalance', placeholder="0 Credits")
+                                        label(for='depositBalance') #{typeof demoMode !== 'undefined' && demoMode ? 'Demo tutar (TL):' : 'Credits:'}
+                                        input#depositBalance.form-control.form-control-lg(type='number', step=(typeof demoMode !== 'undefined' && demoMode ? '0.01' : undefined), min=(typeof demoMode !== 'undefined' && demoMode ? '0' : undefined), name='depositBalance', placeholder=(typeof demoMode !== 'undefined' && demoMode ? '0' : '0 Credits'))
                         .card
                             #headerDepositFreeplay.card-header
                                 h5.mb-0

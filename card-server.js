@@ -6,6 +6,7 @@ if (process.env.OPENCREDIT_MODE === 'demo') {
     const app = express();
     app.set('view engine', 'pug');
     app.set('views', path.join(__dirname, 'web/views'));
+    app.use('/static', express.static(path.join(__dirname, 'web/static')));
     const store = createStore(process.env.PHASE1_DB_PATH || path.join(__dirname, 'phase1-data/demo.sqlite'));
     app.use('/phase1', createApp({ store, standalone: false }));
     app.get('/', (_req, res) => res.redirect('/phase1/'));

@@ -91,6 +91,11 @@ function createApp({ store, standalone = true }) {
     res.json({ ok: true, setupRequired: store.getUserCount() === 0, demoMode: true });
   }));
 
+  app.get('/home', (_req, res) => res.render('home', {
+    demoMode: true, config: { arcade_name: 'openCreditIC Demo', show_delete_actions: false },
+    pos_terminals: [], machine_dispense: [], db: {}
+  }));
+
   app.post('/api/setup', handle(async (req, res) => {
     if (store.getUserCount() !== 0) throw new DomainError('setup_closed', 'İlk yönetici kurulumu zaten tamamlandı.', 409);
     const user = store.createUser({ username: req.body.username, password: req.body.password, role: 'admin' });

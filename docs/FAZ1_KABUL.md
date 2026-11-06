@@ -24,7 +24,7 @@ Kaynak: `MCK_CARD_CODEX_BASLANGIC(1).txt`, bölüm 10. Durum 2026-11-06; yalnız
 ## Yapılmayan
 
 - Gerçek okuyucu, GPIO veya fiziksel pulse testleri; Faz 2 kapsamındadır.
-- Windows kurulum/başlatma/test betikleri eklendi; Windows üzerinde gerçek çalıştırma doğrulaması yapılmadı.
+- Windows betikleri eklendi; yerel Windows testinden 18/18 sonucu ve test uyumluluğu düzeltmeleri bildirildi. Bu çalışma ortamında Windows testi tekrar edilmedi.
 - Gerekçeli parasal düzeltme/iade ve tamamlanmamış Faz 1 kabul testleri; üretime hazırlık iddiası yoktur.
 - Gerçek JSON bakiyelerinin dönüştürülmesi; demo ayrı SQLite kullanır.
 

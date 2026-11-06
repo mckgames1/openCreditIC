@@ -9,8 +9,11 @@ const { spawn } = require('node:child_process');
 test('demo blocks legacy routes and legacy mode retains its route', async () => {
   const root = path.resolve(__dirname, '../..');
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencredit-modes-'));
-  fs.copyFileSync(path.join(root, 'card-server.js'), path.join(dir, 'card-server.js'));
-  fs.symlinkSync(path.join(root, 'node_modules'), path.join(dir, 'node_modules'), 'dir');
+  // Bind only the isolated legacy fixture to loopback; never expose test data on the LAN.
+  const source = fs.readFileSync(path.join(root, 'card-server.js'), 'utf8');
+  assert.equal(source.split('app.listen(port, () => {').length, 2);
+  fs.writeFileSync(path.join(dir, 'card-server.js'), source.replace('app.listen(port, () => {', "app.listen(port, '127.0.0.1', () => {"));
+  fs.symlinkSync(path.join(root, 'node_modules'), path.join(dir, 'node_modules'), process.platform === 'win32' ? 'junction' : 'dir');
   fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify({ arcade_name: 'Test' }));
   async function run(env, port, paths) {
     const child = spawn(process.execPath, [path.join(env.OPENCREDIT_MODE ? root : dir, 'card-server.js')], { cwd: dir, env: { ...process.env, ...env }, stdio: ['ignore', 'pipe', 'pipe'] });

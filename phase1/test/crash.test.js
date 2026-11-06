@@ -16,11 +16,25 @@ for (const point of ['after_balance', 'before_commit', 'after_commit']) {
     store.setDemoState({ cardUid: 'DEMO-0001', present: true });
     store.close();
     const script = `const {createStore}=require(${JSON.stringify(path.resolve(__dirname, '../core'))});
-      const s=createStore(process.argv[1], {testHook: p => { if(p===process.argv[2]) process.kill(process.pid,'SIGKILL'); }});
+      const s=createStore(process.argv[1], {testHook: p => { if(p===process.argv[2]) {
+        require('node:fs').writeSync(1, 'crash-point:' + p);
+        process.kill(process.pid,'SIGKILL');
+      } }});
       s.pay({machineId:'DEMO-MACHINE',cardUid:'DEMO-0001',idempotencyKey:'crash-payment-001',simulator:true});
-      process.kill(process.pid,'SIGKILL');`;
+      if(process.argv[2]==='after_commit') {
+        require('node:fs').writeSync(1, 'crash-point:after_commit');
+        process.kill(process.pid,'SIGKILL');
+      }
+      throw new Error('Expected crash hook was not reached');`;
     const child = spawnSync(process.execPath, ['-e', script, dbPath, point]);
-    assert.equal(child.signal, 'SIGKILL');
+    assert.ifError(child.error);
+    assert.equal(child.stdout.toString(), 'crash-point:' + point);
+    if (process.platform === 'win32') {
+      assert.equal(child.signal, null);
+      assert.equal(child.status, 1);
+    } else {
+      assert.equal(child.signal, 'SIGKILL');
+    }
     const reopened = createStore(dbPath);
     try {
       const committed = point === 'after_commit';

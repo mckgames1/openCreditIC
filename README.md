@@ -84,7 +84,7 @@ Faz 1 demo modu mevcut Express girişinden başlar ve Pug ile gösterilir. Demo 
 3. `BASLAT.bat` dosyasını çalıştırın ve tarayıcıda `http://127.0.0.1:1787/phase1/home` adresini açın. İlk açılışta yönetici hesabını kendiniz oluşturun. Pencere açık kaldığı sürece sunucu çalışır; `Ctrl+C` ile durdurun.
 4. İsteğe bağlı olarak sunucu kapalıyken `TEST.bat` çalıştırın. Test çıktısı hata gösterirse yukarıdaki hata satırlarını saklayın. Testler geçici demo verileri kullanır; 1777 portu boş olmalıdır.
 
-Betikler yönetici izni, güvenlik duvarı değişikliği veya kalıcı servis kurulumu yapmaz. Demo verisi `phase1-data/demo.sqlite` altındadır; mevcut `cards.json` ve `history.json` kullanılmaz. Windows üzerinde bu betikler henüz çalıştırılarak doğrulanmadı. Kurulum yarıda kalırsa oluşan `node_modules` otomatik silinmez; tekrar kurmadan önce içerik ve hata incelenmelidir.
+Betikler yönetici izni, güvenlik duvarı değişikliği veya kalıcı servis kurulumu yapmaz. Demo verisi `phase1-data/demo.sqlite` altındadır; mevcut `cards.json` ve `history.json` kullanılmaz. Windows yerel testinden 18/18 sonucu ve test uyumluluğu düzeltmeleri bildirildi; bu ortamda Windows testi yeniden çalıştırılmadı. Kurulum yarıda kalırsa oluşan `node_modules` otomatik silinmez; tekrar kurmadan önce içerik ve hata incelenmelidir.
 
 ### Komut satırı
 

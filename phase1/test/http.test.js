@@ -327,3 +327,44 @@ test('second demo card shares account balance and idempotent link survives resta
     assert.equal(running.store.getCard(link.uid).tl_balance_cents, 17500);
   } finally { await running.close(); }
 });
+
+test('admin timing settings distinguish short removal and payment cooldown', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencredit-timing-'));
+  const databasePath = path.join(dir, 'demo.sqlite');
+  let running = startServer({ host: '127.0.0.1', port: 0, databasePath });
+  await new Promise(resolve => running.server.once('listening', resolve));
+  let base = `http://127.0.0.1:${running.server.address().port}`;
+  const post = (url, body, cookie) => jsonRequest(base, url, { method: 'POST', body: JSON.stringify(body) }, cookie);
+  const patch = (body, cookie) => jsonRequest(base, '/phase1/api/admin/settings', { method: 'PATCH', body: JSON.stringify(body) }, cookie);
+  try {
+    const admin = (await post('/phase1/api/setup', { username: 'admin', password: 'correct horse battery staple' })).cookie;
+    await post('/phase1/api/admin/users', { username: 'staff', password: 'staff password 1', role: 'staff' }, admin);
+    const staff = (await post('/phase1/api/auth/login', { username: 'staff', password: 'staff password 1' })).cookie;
+    assert.equal((await patch({ cardRemovedMs: 0, paymentCooldownMs: 0 }, staff)).response.status, 403);
+    assert.equal((await patch({ cardRemovedMs: '', paymentCooldownMs: 0 }, admin)).response.status, 400);
+    assert.equal((await patch({ cardRemovedMs: 60001, paymentCooldownMs: 0 }, admin)).response.status, 400);
+    assert.equal((await patch({ cardRemovedMs: 10000, paymentCooldownMs: 60000 }, admin)).response.status, 200);
+    await post('/phase1/api/topups', { accountId: 'demo-account', cardUid: 'DEMO-0001', amountTl: '100', idempotencyKey: 'timing-topup-001' }, admin);
+    const card = action => post('/phase1/api/demo/simulator/card', { action, cardUid: 'DEMO-0001' }, admin);
+    const pay = idempotencyKey => post('/phase1/api/demo/payment', { cardUid: 'DEMO-0001', idempotencyKey }, admin);
+    await card('approach');
+    assert.equal((await pay('timing-payment-001')).data.approved, true);
+    await card('remove');
+    await card('approach');
+    assert.equal((await pay('timing-payment-short')).data.error, 'card_hold_required');
+    await patch({ cardRemovedMs: 0, paymentCooldownMs: 60000 }, admin);
+    await card('remove');
+    await card('approach');
+    assert.equal((await pay('timing-payment-cooldown')).data.error, 'payment_cooldown');
+    await patch({ cardRemovedMs: 0, paymentCooldownMs: 0 }, admin);
+    assert.equal((await pay('timing-payment-002')).data.approved, true);
+    assert.equal(running.store.getAccount('demo-account').tl_balance_cents, 5000);
+    assert.equal(running.store.summary().pulseCount, 2);
+    await running.close();
+    running = startServer({ host: '127.0.0.1', port: 0, databasePath });
+    await new Promise(resolve => running.server.once('listening', resolve));
+    base = `http://127.0.0.1:${running.server.address().port}`;
+    assert.equal(running.store.getConfig().card_removed_ms, 0);
+    assert.equal(running.store.getConfig().payment_cooldown_ms, 0);
+  } finally { await running.close(); }
+});

@@ -157,6 +157,7 @@ function createStore(databasePath, options = {}) {
         if (!['card_removed_ms', 'payment_cooldown_ms'].includes(key)) {
           throw new DomainError('invalid_setting', `Ayar değiştirilemez: ${key}`);
         }
+        if (value === null || value === undefined || typeof value === 'boolean' || String(value).trim() === '') throw new DomainError('invalid_value', `${key} boş bırakılamaz.`);
         const number = nonNegativeInteger(value, key, { max: 60_000 });
         run('INSERT INTO settings (key, value) VALUES ($key, $value) ON CONFLICT(key) DO UPDATE SET value = excluded.value', {
           $key: key, $value: String(number)

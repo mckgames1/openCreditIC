@@ -50,6 +50,8 @@
     }
     document.getElementById('demoAdmin').hidden = !isAdmin;
     if (isAdmin) {
+      document.getElementById('demoCardRemovedMs').value = data.config.card_removed_ms;
+      document.getElementById('demoPaymentCooldownMs').value = data.config.payment_cooldown_ms;
       document.getElementById('demoCardStatus').textContent = `${card.uid}: ${card.locked ? 'Engelli' : 'Aktif'}`;
       document.getElementById('demoCardLock').textContent = card.locked ? 'Kart engelini kaldır' : 'Kartı engelle';
       const tl = value => (Number(value) / 100).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' TL';
@@ -80,6 +82,21 @@
     document.getElementById('demoMachineEnabled').checked = machine.enabled;
   }
   document.getElementById('demoMachine').addEventListener('change', showMachine);
+  document.getElementById('demoTimingForm').addEventListener('submit', async event => {
+    event.preventDefault();
+    const button = event.currentTarget.querySelector('button');
+    if (button.disabled) return;
+    button.disabled = true;
+    try {
+      await api('admin/settings', {
+        cardRemovedMs: document.getElementById('demoCardRemovedMs').value,
+        paymentCooldownMs: document.getElementById('demoPaymentCooldownMs').value
+      }, 'PATCH');
+      await refresh();
+      tell('Demo kart okuma süreleri kaydedildi.');
+    } catch (error) { tell(error.message); }
+    finally { button.disabled = false; }
+  });
   const attachKey = 'opencreditPendingCardLink';
   function showPendingCardLink() {
     const pending = JSON.parse(sessionStorage.getItem(attachKey) || 'null');

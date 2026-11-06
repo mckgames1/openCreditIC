@@ -111,6 +111,14 @@ body.bg-dark.text-white
                     button.btn.btn-warning.mt-2.mb-3(type='submit') Demo düzeltmeyi kaydet
                 p#demoCorrectionPending.alert.alert-warning(hidden)
                 button#demoCorrectionRetry.btn.btn-warning(type='button' hidden) Bekleyen düzeltmeyi doğrula
+                h2.h5 Demo kart okuma süreleri
+                p.small Bu iki ayar tüm demo simülatörü için ortaktır; cihaz bazında değildir.
+                form#demoTimingForm
+                    label(for='demoCardRemovedMs') Kartın çekildiğini doğrulama süresi (ms)
+                    input#demoCardRemovedMs.form-control(type='number' min='0' max='60000' step='1' required)
+                    label(for='demoPaymentCooldownMs') Başarılı ödemeler arası bekleme (ms)
+                    input#demoPaymentCooldownMs.form-control(type='number' min='0' max='60000' step='1' required)
+                    button.btn.btn-primary.mt-2.mb-3(type='submit') Demo sürelerini kaydet
                 h2.h5 Makine ayarları
                 form#demoMachineForm
                     label(for='demoMachine') Makine

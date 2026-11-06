@@ -101,3 +101,44 @@ test('new demo account and card flow remains idempotent through topup and play',
     assert.equal(running.store.getAccount(first.data.account.id).tl_balance_cents, 0);
   } finally { await running.close(); }
 });
+
+test('only admin can record an idempotent review; restart preserves original payment', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencredit-review-'));
+  const databasePath = path.join(dir, 'demo.sqlite');
+  let running = startServer({ host: '127.0.0.1', port: 0, databasePath });
+  await new Promise(resolve => running.server.once('listening', resolve));
+  let base = `http://127.0.0.1:${running.server.address().port}`;
+  let adminCookie;
+  let commandId;
+  const post = (route, body, cookie) => jsonRequest(base, route, { method: 'POST', body: JSON.stringify(body) }, cookie);
+  try {
+    adminCookie = (await post('/phase1/api/setup', { username: 'admin', password: 'correct horse battery staple' })).cookie;
+    await post('/phase1/api/admin/users', { username: 'staff', password: 'staff password 1', role: 'staff' }, adminCookie);
+    const staffCookie = (await post('/phase1/api/auth/login', { username: 'staff', password: 'staff password 1' })).cookie;
+    await post('/phase1/api/topups', { accountId: 'demo-account', cardUid: 'DEMO-0001', amountTl: '200', idempotencyKey: 'review-topup-001' }, adminCookie);
+    await post('/phase1/api/demo/simulator/card', { action: 'approach', cardUid: 'DEMO-0001' }, adminCookie);
+    commandId = (await post('/phase1/api/demo/payment', { cardUid: 'DEMO-0001', idempotencyKey: 'review-payment-001' }, adminCookie)).data.pulseCommandId;
+    await post(`/phase1/api/demo/pulse/${commandId}/simulate`, { outcome: 'response_lost' }, adminCookie);
+    const body = { decision: 'needs_follow_up', reason: 'Yanıt alınamadı, kontrol gerekli.', idempotencyKey: 'review-request-001' };
+    assert.equal((await post(`/phase1/api/demo/pulse/${commandId}/review`, body, staffCookie)).response.status, 403);
+    assert.equal((await post(`/phase1/api/demo/pulse/${commandId}/review`, { ...body, reason: 'kısa' }, adminCookie)).response.status, 400);
+    const recorded = await post(`/phase1/api/demo/pulse/${commandId}/review`, body, adminCookie);
+    assert.equal(recorded.response.status, 201);
+    // Treat the first response as lost and retry exactly the same request.
+    const repeated = await post(`/phase1/api/demo/pulse/${commandId}/review`, body, adminCookie);
+    assert.equal(repeated.data.review.id, recorded.data.review.id);
+    assert.equal(repeated.data.duplicate, true);
+    assert.equal((await post(`/phase1/api/demo/pulse/${commandId}/review`, { ...body, reason: 'Farklı bir açıklama yazıldı.' }, adminCookie)).response.status, 409);
+    await running.close();
+    running = startServer({ host: '127.0.0.1', port: 0, databasePath });
+    await new Promise(resolve => running.server.once('listening', resolve));
+    base = `http://127.0.0.1:${running.server.address().port}`;
+    const after = await jsonRequest(base, '/phase1/api/state', {}, adminCookie);
+    assert.equal(after.data.reviews.length, 1);
+    assert.equal(after.data.reviews[0].reason, body.reason);
+    assert.equal(after.data.pulses.find(p => p.id === commandId).status, 'ambiguous');
+    assert.equal(after.data.accounts.find(a => a.id === 'demo-account').tl_balance_cents, 17500);
+    assert.equal(after.data.summary.pulseCount, 1);
+    assert.equal(after.data.ledger.length, 2);
+  } finally { await running.close(); }
+});

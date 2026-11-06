@@ -130,7 +130,8 @@ function createApp({ store, standalone = true }) {
       summary: store.summary(),
       simulator: { ...simulator, present: Boolean(simulator.present), payment_latched: Boolean(simulator.payment_latched) },
       ledger: store.listLedger({ actorUserId: req.user.role === 'staff' ? req.user.id : null, limit: 25 }),
-      pulses: store.listPulses(25)
+      pulses: store.listPulses(25),
+      reviews: req.user.role === 'admin' ? store.listPulseReviews() : []
     };
     res.json(state);
   }));
@@ -221,6 +222,11 @@ function createApp({ store, standalone = true }) {
 
   app.post('/api/demo/pulse/:id/retry', requireAuth, requireRole('admin', 'staff'), handle(async (req, res) => {
     res.json({ ok: true, pulse: store.retryPulse(req.params.id, req.user.id) });
+  }));
+
+  app.post('/api/demo/pulse/:id/review', requireAuth, requireRole('admin'), handle(async (req, res) => {
+    const result = store.reviewPulse({ commandId: req.params.id, decision: req.body.decision, reason: req.body.reason, idempotencyKey: req.body.idempotencyKey, actorUserId: req.user.id });
+    res.status(result.duplicate ? 200 : 201).json(result);
   }));
 
   app.get('/api/history', requireAuth, handle(async (req, res) => {

@@ -409,6 +409,31 @@ function createStore(databasePath, options = {}) {
     return command;
   }
 
+  function reviewPulse({ commandId, decision, reason, idempotencyKey, actorUserId }) {
+    const payload = { commandId: String(commandId || ''), decision: String(decision || ''), reason: String(reason || '').trim(), actorUserId };
+    if (!['reviewed_no_action', 'needs_follow_up'].includes(payload.decision)) throw new DomainError('invalid_decision', 'Geçerli bir inceleme kararı seçin.');
+    if (payload.reason.length < 10 || payload.reason.length > 1000) throw new DomainError('invalid_reason', 'Gerekçe 10–1000 karakter olmalıdır.');
+    return withImmediateTransaction(() => {
+      const key = ensureIdempotency(idempotencyKey, 'pulse_review', payload);
+      if (key.duplicate) return { ...key.response, duplicate: true };
+      const command = getPulseCommand(payload.commandId);
+      if (command.status !== 'ambiguous') throw new DomainError('not_ambiguous', 'Yalnızca belirsiz komutlar incelenebilir.', 409);
+      if (one('SELECT id FROM pulse_reviews WHERE command_id = $commandId', { $commandId: command.id })) throw new DomainError('already_reviewed', 'Bu komut için inceleme zaten kaydedildi.', 409);
+      const review = { id: makeId('review'), command_id: command.id, decision: payload.decision, reason: payload.reason, actor_user_id: actorUserId, created_at: isoNow() };
+      run('INSERT INTO pulse_reviews (id, command_id, decision, reason, actor_user_id, created_at) VALUES ($id, $command, $decision, $reason, $actor, $created)', {
+        $id: review.id, $command: review.command_id, $decision: review.decision, $reason: review.reason, $actor: actorUserId, $created: review.created_at
+      });
+      audit('pulse.review_recorded', actorUserId, { commandId: command.id, reviewId: review.id, decision: payload.decision });
+      const response = { ok: true, review };
+      saveIdempotency(key.key, 'pulse_review', key.hash, response);
+      return response;
+    });
+  }
+
+  function listPulseReviews() {
+    return many('SELECT r.*, u.username AS actor_username FROM pulse_reviews r JOIN users u ON u.id = r.actor_user_id ORDER BY r.created_at DESC');
+  }
+
   function getIdempotency(idempotencyKey) {
     const row = one('SELECT operation, response_json, created_at FROM idempotency_keys WHERE idempotency_key = $key', { $key: String(idempotencyKey || '') });
     return row ? { operation: row.operation, response: JSON.parse(row.response_json), createdAt: row.created_at } : null;
@@ -481,7 +506,7 @@ function createStore(databasePath, options = {}) {
     dbPath: resolvedPath, close, getConfig, setConfig, createUser, authenticate, sessionUser, revokeSession,
     createAccount, createDemoAccountCard, getAccount, listAccounts, createCard, getCard, setCardLock, listCards,
     createMachine, getMachine, updateMachine, listMachines, topUp, pay, getPulseCommand, simulatePulse,
-    retryPulse, getIdempotency, listLedger, listPulses, summary, getUserCount: () => one('SELECT COUNT(*) AS count FROM users').count,
+    retryPulse, reviewPulse, listPulseReviews, getIdempotency, listLedger, listPulses, summary, getUserCount: () => one('SELECT COUNT(*) AS count FROM users').count,
     getUsers: () => many('SELECT id, username, role, locked, created_at FROM users ORDER BY created_at'),
     getDemoState: () => one('SELECT * FROM simulator_state WHERE id = 1'),
     setDemoState: (state) => {
@@ -529,6 +554,8 @@ function migrate(db) {
     db.prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (\'card_removed_ms\', \'1000\'), (\'payment_cooldown_ms\', \'500\'), (\'demo_mode\', \'true\')').run();
     db.prepare('INSERT OR IGNORE INTO simulator_state (id, updated_at) VALUES (1, $now)').run({ $now: now });
   }
+  db.exec(`CREATE TABLE IF NOT EXISTS pulse_reviews (id TEXT PRIMARY KEY, command_id TEXT NOT NULL UNIQUE REFERENCES pulse_commands(id), decision TEXT NOT NULL CHECK(decision IN ('reviewed_no_action', 'needs_follow_up')), reason TEXT NOT NULL, actor_user_id TEXT NOT NULL REFERENCES users(id), created_at TEXT NOT NULL);`);
+  db.prepare('INSERT OR IGNORE INTO schema_migrations (version, applied_at) VALUES (2, $now)').run({ $now: isoNow() });
 }
 
 function seedDemoData(db) {

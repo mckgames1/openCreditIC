@@ -64,6 +64,24 @@ function render(data) {
   fillSelect($('#sim-card-select'), data.cards, (item) => item.uid, (item) => item.uid);
   if (card) $('#card-select').value = card.uid;
   $('#admin-panel').hidden = data.user.role !== 'admin';
+  $('#review-panel').hidden = data.user.role !== 'admin';
+  if (data.user.role === 'admin') {
+    const reviewed = new Set(data.reviews.map(item => item.command_id));
+    const pendingReview = JSON.parse(sessionStorage.getItem('demoPendingReview') || 'null');
+    fillSelect($('#review-command'), data.pulses.filter(item => item.status === 'ambiguous' && (!reviewed.has(item.id) || item.id === pendingReview?.commandId)), item => item.id, item => `${item.id} · ${item.last_outcome}`);
+    if (pendingReview) {
+      $('#review-command').value = pendingReview.commandId;
+      $('#review-decision').value = pendingReview.decision;
+      $('#review-reason').value = pendingReview.reason;
+    }
+    const list = $('#review-list');
+    list.replaceChildren();
+    for (const review of data.reviews) {
+      const item = document.createElement('li');
+      item.textContent = `${review.command_id} · ${review.decision} · ${review.actor_username} · ${review.created_at} · ${review.reason}`;
+      list.append(item);
+    }
+  }
   if (machine) {
     $('#machine-form [name="priceTl"]').value = (Number(machine.price_cents) / 100).toFixed(2).replace('.', ',');
     $('#machine-form [name="pulseMs"]').value = machine.pulse_ms;
@@ -180,6 +198,29 @@ document.querySelectorAll('.outcome').forEach((button) => button.addEventListene
 $('#retry-pulse').addEventListener('click', async () => {
   if (!state.lastPulseId) return;
   try { await api(`/api/demo/pulse/${state.lastPulseId}/retry`, { method: 'POST', body: '{}' }); showNotice('Aynı bekleyen komut kullanıldı; yeni ödeme oluşturulmadı.'); await refresh(); } catch (error) { showNotice(error.message, true); }
+});
+
+$('#review-form').addEventListener('submit', async event => {
+  event.preventDefault();
+  const button = event.currentTarget.querySelector('button');
+  if (button.disabled) return;
+  let pending = JSON.parse(sessionStorage.getItem('demoPendingReview') || 'null');
+  if (!pending) {
+    pending = { commandId: $('#review-command').value, decision: $('#review-decision').value, reason: $('#review-reason').value, idempotencyKey: idempotency('review') };
+    if (!pending.commandId) return showNotice('Önce belirsiz bir komut seçin.', true);
+    sessionStorage.setItem('demoPendingReview', JSON.stringify(pending));
+  }
+  button.disabled = true;
+  try {
+    await api(`/api/demo/pulse/${encodeURIComponent(pending.commandId)}/review`, { method: 'POST', body: JSON.stringify(pending) });
+    sessionStorage.removeItem('demoPendingReview');
+    $('#review-reason').value = '';
+    showNotice('İnceleme kaydedildi; bakiye ve komut değiştirilmedi.');
+    await refresh();
+  } catch (error) {
+    if (error.status >= 400 && error.status < 500 && error.status !== 401 && error.status !== 403) sessionStorage.removeItem('demoPendingReview');
+    showNotice(`${error.message} Yanıt kaybında aynı incelemeyi yeniden gönderebilirsiniz.`, true);
+  } finally { button.disabled = false; }
 });
 
 $('#machine-form').addEventListener('submit', async (event) => {

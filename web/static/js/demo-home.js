@@ -2,7 +2,7 @@
 (() => {
   let account;
   let card;
-  let pendingKey;
+  let currentUser;
   let registerKey;
   let machines = [];
   const notice = document.getElementById('demoNotice');
@@ -10,11 +10,12 @@
   async function api(path, body, method = 'POST') {
     const response = await fetch('/phase1/api/' + path, body ? { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : {});
     const data = await response.json();
-    if (!response.ok) throw new Error(data.message || 'İşlem başarısız.');
+    if (!response.ok) { const error = new Error(data.message || 'İşlem başarısız.'); error.status = response.status; throw error; }
     return data;
   }
   async function refresh(selectedUid) {
     const data = await api('state');
+    currentUser = data.user;
     const select = document.getElementById('demoCardChoice');
     const wanted = selectedUid || select.value || 'DEMO-0001';
     select.replaceChildren();
@@ -29,6 +30,7 @@
     account = data.accounts.find(item => item.id === card?.account_id);
     if (!account) throw new Error('Demo kartı bulunamadı.');
     document.getElementById('demoAccount').textContent = `${account.name} · Sanal kart ${card.uid} · Bakiye ${(account.tl_balance_cents / 100).toFixed(2)} TL`;
+    showPending();
     const isAdmin = data.user.role === 'admin';
     document.getElementById('demoHistory').hidden = false;
     document.getElementById('demoHistoryScope').textContent = isAdmin ? 'Son 25 demo hareketi' : 'Son 25 kendi demo hareketiniz';
@@ -92,7 +94,7 @@
     } catch (error) { tell(error.message); }
     finally { button.disabled = false; }
   });
-  document.getElementById('demoCardChoice').addEventListener('change', event => { pendingKey = null; refresh(event.target.value).catch(error => tell(error.message)); });
+  document.getElementById('demoCardChoice').addEventListener('change', event => { refresh(event.target.value).catch(error => tell(error.message)); });
   window.registerUser = async () => {
     const button = document.querySelector('#newCardModal .modal-footer .btn-primary');
     if (button.disabled) return;
@@ -118,21 +120,45 @@
       tell('Giriş yapıldı. Yükleme düğmesiyle demo bakiye ekleyebilirsiniz.');
     } catch (error) { tell(error.message); }
   });
-  window.depositCredits = async () => {
-    if (!account || !card) return tell('Önce giriş yapın.');
+  const pendingStorageKey = 'opencreditPendingHomeTopup';
+  function getPending() { return JSON.parse(sessionStorage.getItem(pendingStorageKey) || 'null'); }
+  function showPending() {
+    const pending = getPending();
+    const message = document.getElementById('demoPendingNotice');
+    const retry = document.getElementById('demoRetryTopup');
+    message.hidden = !pending;
+    retry.hidden = !pending;
+    if (pending) message.textContent = `Sonucu bilinmeyen demo yükleme: ${pending.body.cardUid} · ${pending.body.amountTl} TL. Aynı kullanıcıyla doğrulayın; yeni yükleme başlatılamaz.`;
+  }
+  async function sendPendingTopup() {
+    const pending = getPending();
+    if (!pending) return;
+    if (!currentUser || currentUser.id !== pending.userId) return tell('Bekleyen yüklemeyi başlatan kullanıcıyla giriş yapın.');
     const button = document.querySelector('#depositModal .modal-footer .btn-primary');
-    if (button.disabled) return;
+    const retry = document.getElementById('demoRetryTopup');
+    if (button.disabled || retry.disabled) return;
     button.disabled = true;
-    pendingKey ||= 'topup-' + crypto.randomUUID();
+    retry.disabled = true;
     try {
-      const result = await api('topups', { accountId: account.id, cardUid: card.uid, amountTl: document.getElementById('depositBalance').value, idempotencyKey: pendingKey });
-      pendingKey = null;
-      await refresh();
-      tell(`Demo yükleme tamamlandı. Bakiye ${result.balanceAfterTl} TL.`);
+      const result = await api('topups', pending.body);
+      sessionStorage.removeItem(pendingStorageKey);
+      showPending();
+      await refresh(pending.body.cardUid);
+      tell(`${result.duplicate ? 'Önceki yükleme doğrulandı' : 'Demo yükleme tamamlandı'}. İşlem ${result.entryId}; bakiye ${result.balanceAfterTl} TL.`);
       window.$('#depositModal').modal('hide');
-    } catch (error) { tell(error.message + ' Aynı isteği tekrar deneyebilirsiniz.'); }
-    finally { button.disabled = false; }
+    } catch (error) {
+      if (error.status === 400 || error.status === 404) { sessionStorage.removeItem(pendingStorageKey); showPending(); }
+      tell(error.message + ' Bekleyen işlemi aynı içerikle doğrulayın.');
+    } finally { button.disabled = false; retry.disabled = false; }
+  }
+  window.depositCredits = async () => {
+    if (!account || !card || !currentUser) return tell('Önce giriş yapın.');
+    if (getPending()) return tell('Önce bekleyen yüklemeyi doğrulayın.');
+    const pending = { userId: currentUser.id, body: { accountId: account.id, cardUid: card.uid, amountTl: document.getElementById('depositBalance').value, idempotencyKey: 'topup-' + crypto.randomUUID() } };
+    sessionStorage.setItem(pendingStorageKey, JSON.stringify(pending));
+    showPending();
+    await sendPendingTopup();
   };
-  document.getElementById('depositBalance').addEventListener('input', () => { pendingKey = null; });
+  document.getElementById('demoRetryTopup').addEventListener('click', sendPendingTopup);
   refresh().catch(() => {});
 })();

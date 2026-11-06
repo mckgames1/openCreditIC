@@ -250,6 +250,13 @@ function createApp({ store, standalone = true }) {
     res.json({ ok: true, machine: publicMachine(store.saveDeviceConfig(req.params.id, req.body, req.user.id)) });
   }));
 
+  app.get('/api/admin/machine-faults', requireAuth, requireRole('admin'), handle(async (_req, res) => {
+    res.json({ ok: true, faults: store.listMachineFaults() });
+  }));
+  app.post('/api/admin/machine-faults', requireAuth, requireRole('admin'), handle(async (req, res) => {
+    res.json({ ok: true, fault: store.reportMachineFault({ ...req.body, actorUserId: req.user.id }) });
+  }));
+
   app.patch('/api/admin/settings', requireAuth, requireRole('admin'), handle(async (req, res) => {
     res.status(410).json({ ok: false, error: 'device_settings_required', message: 'Süreler artık cihaz bazında ayarlanır.' });
   }));

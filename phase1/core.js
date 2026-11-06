@@ -759,6 +759,25 @@ function createStore(databasePath, options = {}) {
     return many('SELECT r.*, u.username AS actor_username FROM pulse_reviews r JOIN users u ON u.id = r.actor_user_id ORDER BY r.created_at DESC');
   }
 
+  function reportMachineFault({ machineId, description, idempotencyKey, actorUserId }) {
+    const machine = getMachine(machineId);
+    const text = String(description || '').trim();
+    if (text.length < 5 || text.length > 1000) throw new DomainError('invalid_fault', 'Arıza açıklaması 5–1000 karakter olmalıdır.');
+    const payload = { machineId: machine.id, description: text, actorUserId };
+    return withImmediateTransaction(() => {
+      const key = ensureIdempotency(idempotencyKey, 'machine_fault', payload);
+      if (key.duplicate) return { ...key.response, duplicate: true };
+      const record = { id: makeId('fault'), ...payload, createdAt: isoNow() };
+      audit('machine.fault_reported', actorUserId, record);
+      saveIdempotency(key.key, 'machine_fault', key.hash, record);
+      return record;
+    });
+  }
+
+  function listMachineFaults() {
+    return many("SELECT data_json, created_at FROM audit_log WHERE event_type = 'machine.fault_reported' ORDER BY created_at DESC LIMIT 100").map(row => JSON.parse(row.data_json));
+  }
+
   function getIdempotency(idempotencyKey) {
     const row = one('SELECT operation, response_json, created_at FROM idempotency_keys WHERE idempotency_key = $key', { $key: String(idempotencyKey || '') });
     return row ? { operation: row.operation, response: JSON.parse(row.response_json), createdAt: row.created_at } : null;
@@ -976,7 +995,7 @@ function createStore(databasePath, options = {}) {
     dbPath: resolvedPath, close, getConfig, setConfig, createUser, authenticate, sessionUser, revokeSession, setStaffLocked, issueDemoPasswordReset, completeDemoPasswordReset,
     createAccount, createDemoAccountCard, attachDemoCard, getAccount, listAccounts, createCard, getCard, setCardLock, listCards,
     createMachine, getMachine, updateMachine, saveDeviceConfig, setMachineTiming, setMachineLed, reportSimulatedSettings, listMachines, topUp, prepareDemoTopupIntent, listDemoTopupIntents, executeDemoTopupIntent, correctBalance, pay, demoFreePlay, getPulseCommand, simulatePulse,
-    retryPulse, reviewPulse, listPulseReviews, getIdempotency, lookupDemoTopup, recentRecordedDemoTopups, listLedger, detailedLedger, listPulses, summary, periodReport, getUserCount: () => one('SELECT COUNT(*) AS count FROM users').count,
+    retryPulse, reviewPulse, listPulseReviews, reportMachineFault, listMachineFaults, getIdempotency, lookupDemoTopup, recentRecordedDemoTopups, listLedger, detailedLedger, listPulses, summary, periodReport, getUserCount: () => one('SELECT COUNT(*) AS count FROM users').count,
     getUsers: () => many('SELECT id, username, role, locked, created_at FROM users ORDER BY created_at'),
     getDemoState: getDeviceState,
     setDemoState: setDeviceState,

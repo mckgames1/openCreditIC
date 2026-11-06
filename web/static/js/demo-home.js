@@ -10,6 +10,7 @@
   let topupHistoryRequest = 0;
   let intentRequest = 0;
   let detailPage = 1;
+  let faultKey = null;
   let turnoverAmount = '';
   let turnoverHidden = false;
   const turnoverBox = document.getElementById('turnoverBox');
@@ -57,9 +58,11 @@
     showPending();
     showPendingCardLink();
     const isAdmin = data.user.role === 'admin';
+    document.body.classList.toggle('role-staff', !isAdmin);
     turnoverBox.hidden = !isAdmin;
     if (!isAdmin) { turnoverAmount = ''; turnoverValue.textContent = ''; }
     if (!isAdmin) {
+      document.getElementById('machineFaultList').replaceChildren();
       reportRequest++;
       detailRequest++;
       for (const id of ['demoResetIssueResult', 'demoReportTotals', 'demoReportCommands', 'demoReportChart', 'demoReportMachines', 'demoPulseRows', 'demoDetailRows', 'demoDetailStatus', 'demoTopupLookupResult']) document.getElementById(id).replaceChildren();
@@ -135,6 +138,7 @@
       document.getElementById('demoCardLock').textContent = card.locked ? 'Kart engelini kaldır' : 'Kartı engelle';
       const tl = value => (Number(value) / 100).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' TL';
       turnoverAmount = tl(data.summary.topups_cents); showTurnover();
+      await refreshFaults();
       document.getElementById('demoTotals').textContent = `Yükleme: ${tl(data.summary.topups_cents)} · Harcama: ${tl(data.summary.game_charges_cents)} · Net düzeltme: ${tl(data.summary.corrections_cents)} · Ücretsiz oyun: ${data.summary.free_plays_count} adet · Kalan bakiye: ${tl(data.accounts.reduce((sum, item) => sum + item.tl_balance_cents, 0))}`;
       showPendingFreePlay();
       await refreshReport();
@@ -624,6 +628,27 @@
       }, 'PATCH');
       await refresh();
       tell('Bağlantı bilgileri kaydedildi; cihaza aktarılmadı.');
+    } catch (error) { tell(error.message); }
+    finally { button.disabled = false; }
+  });
+  document.getElementById('machineFaultDescription').addEventListener('input', () => { faultKey = null; });
+  async function refreshFaults() {
+    const data = await api('admin/machine-faults');
+    const list = document.getElementById('machineFaultList'); list.replaceChildren();
+    for (const fault of data.faults) {
+      const row = document.createElement('li');
+      row.textContent = `${fault.createdAt} · ${fault.machineId} · ${fault.description}`;
+      list.append(row);
+    }
+  }
+  document.getElementById('machineFaultForm').addEventListener('submit', async event => {
+    event.preventDefault();
+    const button = event.currentTarget.querySelector('button'); button.disabled = true;
+    try {
+      faultKey ||= 'fault-' + crypto.randomUUID();
+      await api('admin/machine-faults', { machineId: document.getElementById('demoMachine').value, description: document.getElementById('machineFaultDescription').value, idempotencyKey: faultKey });
+      faultKey = null; document.getElementById('machineFaultDescription').value = '';
+      await refreshFaults(); tell('Arıza kaydı oluşturuldu.');
     } catch (error) { tell(error.message); }
     finally { button.disabled = false; }
   });

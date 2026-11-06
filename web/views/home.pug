@@ -301,6 +301,13 @@ body.bg-dark.text-white(class=(typeof demoMode !== 'undefined' && demoMode ? 'de
                     input#demoLedBrightness.form-control(type='number' min='0' max='255' step='1' required)
                     button.btn.btn-primary.mt-2.mb-3(type='submit') LED ayarını kaydet
                 p#demoSettingsStatus
+                h2.h5 Arıza bildirimleri
+                p.small Seçili makine için açıklama kaydedin; kayıt silinmez ve otomatik cihaz teşhisi yapılmaz.
+                form#machineFaultForm
+                    label(for='machineFaultDescription') Arıza açıklaması
+                    textarea#machineFaultDescription.form-control(required minlength='5' maxlength='1000')
+                    button.btn.btn-primary.mt-2(type='submit') Arıza kaydet
+                ul#machineFaultList.mt-3
                 h2.h5 Cihaz bağlantı bilgileri
                 p.small Bilgiler kaydedilir; cihaza bağlantı veya ayar aktarımı henüz yapılmaz.
                 form#deviceConfigForm

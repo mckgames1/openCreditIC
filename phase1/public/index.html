@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>openCreditIC — Faz 1 Demo</title>
+  <link rel="stylesheet" href="/phase1/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <p class="eyebrow">openCreditIC / PayPass</p>
+      <h1>Yerel kredi merkezi</h1>
+    </div>
+    <div class="badges"><span class="badge warning">DEMO</span><span class="badge">GERÇEK DONANIM DEĞİL</span></div>
+  </header>
+
+  <main class="container">
+    <section id="notice" class="notice" hidden></section>
+
+    <section id="auth-panel" class="auth-grid">
+      <article id="setup-card" class="panel" hidden>
+        <p class="eyebrow">İlk çalıştırma</p>
+        <h2>Yönetici oluştur</h2>
+        <p class="muted">Bu yerel demo için ilk yönetici hesabını oluşturun. Sabit parola kullanılmaz.</p>
+        <form id="setup-form" class="stack">
+          <label>Kullanıcı adı<input name="username" autocomplete="username" required minlength="3" value="admin"></label>
+          <label>Parola<input name="password" type="password" autocomplete="new-password" required minlength="10"></label>
+          <button class="primary" type="submit">Yönetici oluştur ve giriş yap</button>
+        </form>
+      </article>
+      <article id="login-card" class="panel">
+        <p class="eyebrow">Yerel giriş</p>
+        <h2>Oturum aç</h2>
+        <form id="login-form" class="stack">
+          <label>Kullanıcı adı<input name="username" autocomplete="username" required></label>
+          <label>Parola<input name="password" type="password" autocomplete="current-password" required></label>
+          <button class="primary" type="submit">Giriş yap</button>
+        </form>
+      </article>
+    </section>
+
+    <section id="app-panel" hidden>
+      <div class="toolbar panel">
+        <div><span class="eyebrow">Aktif oturum</span><strong id="user-label">—</strong></div>
+        <div class="toolbar-actions"><span id="role-label" class="badge"></span><button id="logout" class="secondary">Çıkış</button></div>
+      </div>
+
+      <div class="grid three">
+        <article class="panel stat"><span class="eyebrow">Demo bakiye</span><strong id="balance">0,00 TL</strong><small id="account-label">—</small></article>
+        <article class="panel stat"><span class="eyebrow">Makine fiyatı</span><strong id="machine-price">0,00 TL</strong><small id="machine-label">—</small></article>
+        <article class="panel stat"><span class="eyebrow">Özet</span><strong id="ledger-count">0 işlem</strong><small id="pulse-count">0 pulse komutu</small></article>
+      </div>
+
+      <div class="grid two">
+        <article class="panel">
+          <div class="panel-heading"><div><p class="eyebrow">Bakiye çekirdeği</p><h2>Demo yükleme</h2></div><span class="badge">KURUŞ</span></div>
+          <form id="topup-form" class="stack">
+            <label>Tutar (TL)<input name="amountTl" type="text" inputmode="decimal" value="200,00" required></label>
+            <label>Hesap<select name="accountId" id="account-select"></select></label>
+            <label>Kart UID<select name="cardUid" id="card-select"></select></label>
+            <button class="primary" type="submit">Bakiye yükle</button>
+          </form>
+          <p class="muted tiny">Demo hareketleri yerel SQLite veritabanında tutulur. Gerçek kayıtlar kullanılmaz.</p>
+        </article>
+
+        <article class="panel">
+          <div class="panel-heading"><div><p class="eyebrow">Makine okuyucusu</p><h2>Sanal kart simülatörü</h2></div><span id="sim-led" class="led off"></span></div>
+          <div class="simulator-layout">
+            <div class="device-screen" aria-label="128 x 160 oranında sanal cihaz ekranı"><div id="screen-state">KARTINIZI<br>OKUTUN</div><small>128 × 160 oranı</small></div>
+            <div class="stack compact">
+              <label>Kart UID<select name="simCardUid" id="sim-card-select"></select></label>
+              <div class="button-row"><button id="approach" class="secondary" type="button">Yaklaştır</button><button id="hold" class="secondary" type="button">Tut</button><button id="remove" class="secondary" type="button">Çek</button></div>
+              <button id="pay" class="primary" type="button">Ödeme isteği gönder</button>
+              <button id="repeat-pay" class="secondary" type="button" disabled>Aynı isteği tekrar gönder</button>
+              <p id="sim-message" class="muted tiny">Kartı yaklaştırıp tutun.</p>
+            </div>
+          </div>
+        </article>
+      </div>
+
+      <div class="grid two">
+        <article class="panel">
+          <div class="panel-heading"><div><p class="eyebrow">Pulse komutu</p><h2>Sonucu simüle et</h2></div><span class="badge">GERÇEK GPIO YOK</span></div>
+          <p id="pulse-info" class="muted">Henüz pulse komutu yok.</p>
+          <div class="button-row"><button class="secondary outcome" data-outcome="succeeded" type="button">Başarılı</button><button class="secondary outcome" data-outcome="response_lost" type="button">Yanıt kaybı</button><button class="secondary outcome" data-outcome="connection_lost" type="button">Bağlantı kesildi</button></div>
+          <button id="retry-pulse" class="secondary" type="button" disabled>Aynı komutu yeniden dene</button>
+          <p class="muted tiny">Belirsiz sonuç yeni ödeme oluşturmaz; yeniden deneme aynı komut kimliğini kullanır.</p>
+        </article>
+
+        <article id="admin-panel" class="panel" hidden>
+          <div class="panel-heading"><div><p class="eyebrow">Yönetici</p><h2>Makine ayarları</h2></div><span class="badge">SUNUCU TARAFI</span></div>
+          <form id="machine-form" class="stack compact">
+            <label>Fiyat (TL)<input name="priceTl" type="text" inputmode="decimal" value="25,00"></label>
+            <label>Pulse süresi (ms)<input name="pulseMs" type="number" min="10" max="1000" value="100"></label>
+            <label>Pulse adedi<input name="pulseCount" type="number" min="1" value="1"></label>
+            <label>Darbeler arası boşluk (ms)<input name="pulseGapMs" type="number" min="0" value="100"></label>
+            <button class="primary" type="submit">Makine ayarını kaydet</button>
+          </form>
+          <div class="admin-actions"><button id="lock-card" class="danger" type="button">Demo kartı kilitle</button><button id="unlock-card" class="secondary" type="button">Kilidi aç</button></div>
+        </article>
+      </div>
+
+      <section class="panel">
+        <div class="panel-heading"><div><p class="eyebrow">Kayıtlar</p><h2>Son hareketler</h2></div><button id="refresh" class="secondary" type="button">Yenile</button></div>
+        <div class="table-wrap"><table><thead><tr><th>Zaman</th><th>Tür</th><th>Tutar</th><th>Bakiye</th><th>Durum / Kimlik</th></tr></thead><tbody id="history-body"></tbody></table></div>
+      </section>
+    </section>
+  </main>
+  <script src="/phase1/app.js" defer></script>
+</body>
+</html>

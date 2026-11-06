@@ -3,3 +3,6 @@
 /config.json
 /CardReader-Game/config.h
 /CardReader-POS/config.h
+/phase1-data/
+/phase1-backups/
+/node_modules/

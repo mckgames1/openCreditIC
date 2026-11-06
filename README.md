@@ -73,6 +73,19 @@ Supports various other ACR developed Arcade solutions
 
 Use something like pm2 or systemd to run as a daemon 
 
+## Faz 1 yerel demo
+
+Faz 1 prototipi mevcut Express projesine `/phase1` altında eklenmiştir. Legacy JSON/Pug akışı korunur; demo verisi ayrı bir SQLite dosyasında tutulur ve gerçek donanıma veya gerçek kullanıcı verisine erişmez.
+
+```text
+npm ci
+npm run phase1
+```
+
+Ardından `http://127.0.0.1:1787/phase1` adresini açın. İlk açılışta yönetici hesabı oluşturulur. Demo arayüzünde `DEMO / GERÇEK DONANIM DEĞİL` ibaresi bulunur; kart yaklaştırma, kartı tutma/çekme, 200 TL yükleme, 25 TL demo ödeme, tekrar istek ve belirsiz pulse sonucu simüle edilebilir.
+
+Faz 1 kapsamı, denetim ve açık sorular için `docs/PROJECT_SPEC.md`, `docs/REPO_AUDIT.md`, `docs/PLAN.md`, `docs/OPEN_QUESTIONS.md` ve `docs/PROGRESS.md` dosyalarına bakın.
+
 ## Example Card Reader Designs
 Here are card readers that I have made and implemented as an example
 ### WACCA (Built into lower panel)

@@ -1,6 +1,15 @@
 {
   "name": "SimpleCabRFID",
   "version": "1.0.0",
+  "engines": {
+    "node": ">=22.5.0"
+  },
+  "scripts": {
+    "start": "node ./card-server.js",
+    "phase1": "node ./phase1/server.js",
+    "phase1:backup": "node ./phase1/scripts/backup.js",
+    "test": "node --test phase1/test/*.test.js"
+  },
   "dependencies": {
     "express": "^4.18.2",
     "moment": "^2.29.4",

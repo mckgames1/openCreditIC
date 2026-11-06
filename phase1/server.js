@@ -127,10 +127,10 @@ function createApp({ store, standalone = true }) {
       accounts: store.listAccounts(),
       cards: store.listCards().map(publicCard),
       machines: store.listMachines().map(publicMachine),
-      summary: store.summary(),
+      summary: req.user.role === 'admin' ? store.summary() : null,
       simulator: { ...simulator, present: Boolean(simulator.present), payment_latched: Boolean(simulator.payment_latched) },
       ledger: store.listLedger({ actorUserId: req.user.role === 'staff' ? req.user.id : null, limit: 25 }),
-      pulses: store.listPulses(25),
+      pulses: req.user.role === 'admin' ? store.listPulses(25) : [],
       reviews: req.user.role === 'admin' ? store.listPulseReviews() : []
     };
     res.json(state);

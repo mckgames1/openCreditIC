@@ -12,9 +12,11 @@ Faz 1 tamamlanmadı; yerel demo geliştirme aşamasındadır. `npm run phase1` m
 
 Mevcut ana sayfada yönetici için makine adı, fiyatı, aktif durumu ve sanal pulse süresi/adedi/aralığı ile toplam yükleme, harcama ve bakiye özeti gösterilir. Chromium'da 200 TL yükleme, 50 TL fiyat ve 150 ms ayarla oyun sonrası 150 TL bakiye doğrulandı; gerçek donanım kullanılmadı.
 
+Personel ana sayfada demo yükleme yapar ve son 25 kendi hareketini görür. İşlem kimliği ve denetim kaydı saklanır; personel genel özet ve diğer komut geçmişini alamaz. Chromium'da personel girişi, yükleme, geçmiş ve yönetici panelinin gizlenmesi doğrulandı. Gerçek kasa okuyucusu ve oturum eşleme Faz 3'tedir.
+
 ## Test kanıtı
 
-`npm test` sonucu: **14 test geçti, 0 başarısız**. Ödeme transaction'ında bakiye güncellemesinden sonra, commit öncesinde ve commit sonrasında süreç SIGKILL ile durdurularak SQLite yeniden açma ve aynı istek tekrarı test edildi. Yönetici incelemesi için yetki, gerekçe, aynı ve farklı içerikle tekrar ile sunucu yeniden başlatma test edildi. Fiyat/pulse sınırları ve başlamış işlem ayarının korunması test edildi. Chromium'da ödeme yanıtının kesilmesi ve tekrar test edildi; inceleme ekranı henüz tarayıcıda test edilmedi.
+`npm test` sonucu: **15 test geçti, 0 başarısız**. Ödeme transaction'ında bakiye güncellemesinden sonra, commit öncesinde ve commit sonrasında süreç SIGKILL ile durdurularak SQLite yeniden açma ve aynı istek tekrarı test edildi. Yönetici incelemesi için yetki, gerekçe, aynı ve farklı içerikle tekrar ile sunucu yeniden başlatma test edildi. Fiyat/pulse sınırları ve başlamış işlem ayarının korunması test edildi. İki personelin işlem geçmişi ayrımı, denetim kaydı, yetki ve kalıcılığı test edildi. Chromium'da ödeme yanıtının kesilmesi ve tekrar test edildi; inceleme ekranı henüz tarayıcıda test edilmedi.
 
 Kapsanan akışlar: 200 TL yükleme, 25 TL ödeme, tekrar istek, art arda iki ödeme denemesi, kartı tutarken tekrar yaklaştırma, yetersiz bakiye, demo modunda eski yolların reddi, legacy modunda bir route'un varlığı, fiyat snapshot'ı, yeniden açılışta kalıcılık ve personel API yetki reddi. İki bağımsız cihazın gerçek eşzamanlı yarışı test edilmedi.
 

@@ -30,6 +30,20 @@
     if (!account) throw new Error('Demo kartı bulunamadı.');
     document.getElementById('demoAccount').textContent = `${account.name} · Sanal kart ${card.uid} · Bakiye ${(account.tl_balance_cents / 100).toFixed(2)} TL`;
     const isAdmin = data.user.role === 'admin';
+    document.getElementById('demoHistory').hidden = false;
+    document.getElementById('demoHistoryScope').textContent = isAdmin ? 'Son 25 demo hareketi' : 'Son 25 kendi demo hareketiniz';
+    const history = document.getElementById('demoHistoryRows');
+    history.replaceChildren();
+    for (const entry of data.ledger) {
+      const row = document.createElement('tr');
+      const type = { topup: 'Yükleme', game_charge: 'Oyun harcaması' }[entry.entry_type] || entry.entry_type;
+      for (const value of [entry.created_at, type, (entry.amount_cents / 100).toFixed(2) + ' TL', (entry.balance_after_cents / 100).toFixed(2) + ' TL', entry.id]) {
+        const cell = document.createElement('td');
+        cell.textContent = value;
+        row.append(cell);
+      }
+      history.append(row);
+    }
     document.getElementById('demoAdmin').hidden = !isAdmin;
     if (isAdmin) {
       const tl = value => (Number(value) / 100).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' TL';

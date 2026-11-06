@@ -57,8 +57,8 @@ function render(data) {
   $('#account-label').textContent = account ? `${account.name} · ${account.id}` : 'Hesap yok';
   $('#machine-price').textContent = money(machine?.price_cents);
   $('#machine-label').textContent = machine ? `${machine.name} · ${machine.pulse_ms} ms × ${machine.pulse_count}` : 'Makine yok';
-  $('#ledger-count').textContent = `${data.summary.ledger_count} işlem`;
-  $('#pulse-count').textContent = `${data.summary.pulseCount} pulse komutu`;
+  $('#ledger-count').textContent = data.summary ? `${data.summary.ledger_count} işlem` : `${data.ledger.length} kendi işleminiz`;
+  $('#pulse-count').textContent = data.summary ? `${data.summary.pulseCount} pulse komutu` : '';
   fillSelect($('#account-select'), data.accounts, (item) => item.id, (item) => `${item.name} (${money(item.tl_balance_cents)})`);
   fillSelect($('#card-select'), data.cards, (item) => item.uid, (item) => `${item.uid} · ${item.account_name}`);
   fillSelect($('#sim-card-select'), data.cards, (item) => item.uid, (item) => item.uid);

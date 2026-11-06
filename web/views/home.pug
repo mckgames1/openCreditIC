@@ -62,6 +62,19 @@ body.bg-dark.text-white
                 select#demoCardChoice.form-control
                 a.btn.btn-outline-primary.mt-2(href='/phase1/') Makine simülatörüne git
                 p#demoNotice(role='status')
+            section#demoHistory.card.text-dark.p-3.mt-3.text-left(hidden)
+                h2.h5 İşlem geçmişi
+                p.small#demoHistoryScope
+                div.table-responsive
+                    table.table.table-sm
+                        thead
+                            tr
+                                th Zaman (UTC)
+                                th İşlem
+                                th Tutar
+                                th İşlem sonrası bakiye
+                                th İşlem kimliği
+                        tbody#demoHistoryRows
             section#demoAdmin.card.text-dark.p-3.mt-3.text-left(hidden)
                 h2.h5 Demo işlem özeti
                 p#demoTotals

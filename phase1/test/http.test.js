@@ -170,3 +170,42 @@ test('machine settings validate pulse range and retain price snapshot', async ()
     assert.equal(state.data.accounts.reduce((sum, item) => sum + item.tl_balance_cents, 0), 15000);
   } finally { await running.close(); }
 });
+
+test('staff sees only own persisted transactions and cannot change admin settings', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencredit-staff-'));
+  const databasePath = path.join(dir, 'demo.sqlite');
+  let running = startServer({ host: '127.0.0.1', port: 0, databasePath });
+  await new Promise(resolve => running.server.once('listening', resolve));
+  let base = `http://127.0.0.1:${running.server.address().port}`;
+  const post = (url, body, cookie) => jsonRequest(base, url, { method: 'POST', body: JSON.stringify(body) }, cookie);
+  try {
+    const admin = (await post('/phase1/api/setup', { username: 'admin', password: 'correct horse battery staple' })).cookie;
+    for (const name of ['staff1', 'staff2']) await post('/phase1/api/admin/users', { username: name, password: 'staff password 1', role: 'staff' }, admin);
+    const staff1 = (await post('/phase1/api/auth/login', { username: 'staff1', password: 'staff password 1' })).cookie;
+    const staff2 = (await post('/phase1/api/auth/login', { username: 'staff2', password: 'staff password 1' })).cookie;
+    const topup = { accountId: 'demo-account', cardUid: 'DEMO-0001', amountTl: '10', idempotencyKey: 'staff1-topup-001' };
+    const first = await post('/phase1/api/topups', topup, staff1);
+    assert.equal(first.response.status, 201);
+    assert.equal((await post('/phase1/api/topups', topup, staff1)).data.duplicate, true);
+    await post('/phase1/api/topups', { ...topup, idempotencyKey: 'staff2-topup-001' }, staff2);
+    const denied = await jsonRequest(base, '/phase1/api/machines/DEMO-MACHINE', { method: 'PATCH', body: JSON.stringify({ priceTl: '50' }) }, staff1);
+    assert.equal(denied.response.status, 403);
+    assert.equal((await post('/phase1/api/admin/users', { username: 'intruder', password: 'staff password 1' }, staff1)).response.status, 403);
+    await running.close();
+    running = startServer({ host: '127.0.0.1', port: 0, databasePath });
+    await new Promise(resolve => running.server.once('listening', resolve));
+    base = `http://127.0.0.1:${running.server.address().port}`;
+    const state = (await jsonRequest(base, '/phase1/api/state', {}, staff1)).data;
+    assert.equal(state.ledger.length, 1);
+    assert.equal(state.ledger[0].id, first.data.entryId);
+    assert.equal(state.summary, null);
+    assert.deepEqual(state.pulses, []);
+    const history = (await jsonRequest(base, '/phase1/api/history', {}, staff1)).data;
+    assert.equal(history.ledger.length, 1);
+    assert.equal(running.store.getAccount('demo-account').tl_balance_cents, 2000);
+    const { DatabaseSync } = require('node:sqlite');
+    const inspection = new DatabaseSync(databasePath);
+    assert.equal(inspection.prepare("SELECT COUNT(*) AS n FROM audit_log WHERE event_type = 'balance.credited' AND actor_user_id = ?").get(state.user.id).n, 1);
+    inspection.close();
+  } finally { await running.close(); }
+});

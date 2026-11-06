@@ -30,6 +30,8 @@ Yöneticiye bilinen demo yükleme istek kimliğiyle salt okunur merkez kaydı so
 
 Tanımsız kartın ücret ve komut üretmemesi, tutulmuş kartın gerçek bekleme süresi geçtikten sonra ikinci ödemeyi reddetmesi ve yeterli süre çekilmiş kartın yeniden ödeme yapabilmesi izole demo HTTP testine eklendi. Son iki durum Chromium simülatöründe de 200 ms ayar ve 300 ms gerçek beklemeyle denendi. Linux'ta 38 otomatik test geçti; gerçek RFID, fiziksel pulse, Windows ve internetin fiziksel kesilmesi test edilmedi.
 
+Yönetici, gerekçe ve hazır/tanımlı/engelsiz sanal kartla sıfır tutarlı ücretsiz demo oyunu oluşturabilir. Bakiye değişmez; işlem kaydı, tek bekleyen sanal komut ve ayrı sayı raporu atomik tutulur. Yanıt kaybında aynı sekmedeki tekrar aynı komutu döndürür; sekme kapanışında bekleyen kimlik korunmaz. Hata enjeksiyonunda işlem/komut geri alındı. Linux'ta 41 otomatik test ile Chromium'da ücretsiz oyun, kayıp yanıt ve yönetici/personel akışları geçti. `0c8a04a` için Windows'ta 38/38 ve 200/50/150 akışı bildirildi; bu sonraki değişiklik Windows'ta doğrulanmadı. Gerçek ücretsiz oyun yetkileri ve iş kuralları kullanıcı kararına açık, gerçek cihaz/para yok.
+
 Yönetici aynı sayfada seçili demo kartı engelleyebilir veya engelini kaldırabilir. Tekrarlanan aynı durum isteği ikinci denetim olayı üretmez; engelli kart ödeme yapamaz. Chromium ve HTTP testleriyle doğrulandı.
 
 Ana sayfada seçili demo hesaba başka sanal UID bağlanabilir; kartlar aynı bakiyeyi paylaşır. Tekrarlanan bağlama isteği aynı sonucu döndürür, UID yeniden farklı hesaba atanmaz. Chromium'da iki kartın ortak bakiyesi ve HTTP testinde yeniden başlatma doğrulandı. Fiziksel okuyucu bağlantısı yoktur.

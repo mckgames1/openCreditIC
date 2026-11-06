@@ -594,6 +594,42 @@ function createStore(databasePath, options = {}) {
     });
   }
 
+  function demoFreePlay({ machineId, cardUid, reason, idempotencyKey, actorUserId }) {
+    const note = typeof reason === 'string' ? reason.trim() : '';
+    if (note.length < 10 || note.length > 1000) throw new DomainError('invalid_reason', 'Gerekçe 10–1000 karakter olmalıdır.');
+    const payload = { machineId: String(machineId || '').trim().toUpperCase(), cardUid: normalizeUid(cardUid), reason: note, actorUserId };
+    return withImmediateTransaction(() => {
+      const key = ensureIdempotency(idempotencyKey, 'demo_free_play', payload);
+      if (key.duplicate) return { ...key.response, duplicate: true };
+      const machine = getMachine(payload.machineId);
+      const now = Date.now();
+      const state = getDeviceState(machine.id);
+      if (!state.present || state.card_uid !== payload.cardUid) throw new DomainError('card_not_present', 'Önce sanal kartı seçili cihaza yaklaştırın.', 409);
+      if (state.payment_latched) throw new DomainError('card_hold_required', 'Yeni oyun için kartı çekip yeniden yaklaştırın.', 409);
+      if (now < state.eligible_at_ms) throw new DomainError('card_removed_wait', 'Kartın çekilme bekleme süresi dolmadı.', 409);
+      if (now < state.cooldown_until_ms) throw new DomainError('payment_cooldown', 'Oyun bekleme süresi devam ediyor.', 409);
+      const card = getCard(payload.cardUid);
+      if (!machine.enabled) throw new DomainError('machine_disabled', 'Makine pasif.', 409);
+      if (card.locked || card.account_locked) throw new DomainError('card_locked', 'Kart veya hesap kilitli.', 403);
+      const entryId = makeId('led'); const pulseCommandId = makeId('pulse'); const createdAt = isoNow();
+      run(`INSERT INTO ledger_entries (id, account_id, card_uid, actor_user_id, entry_type, amount_cents, ticket_delta, balance_after_cents, idempotency_key, note, created_at)
+        VALUES ($id,$account,$card,$actor,'free_play',0,0,$balance,$key,$note,$created)`, {
+        $id: entryId, $account: card.account_id, $card: card.uid, $actor: actorUserId, $balance: card.tl_balance_cents,
+        $key: `${key.key}:ledger`, $note: note, $created: createdAt
+      });
+      run(`INSERT INTO pulse_commands (id, machine_id, account_id, card_uid, actor_user_id, amount_cents, pulse_ms, pulse_count, pulse_gap_ms, status, attempt_count, idempotency_key, created_at, updated_at)
+        VALUES ($id,$machine,$account,$card,$actor,0,$pulseMs,$pulseCount,$pulseGap,'pending',0,$key,$created,$created)`, {
+        $id: pulseCommandId, $machine: machine.id, $account: card.account_id, $card: card.uid, $actor: actorUserId,
+        $pulseMs: machine.pulse_ms, $pulseCount: machine.pulse_count, $pulseGap: machine.pulse_gap_ms, $key: key.key, $created: createdAt
+      });
+      const response = { ok: true, entryId, pulseCommandId, balanceAfterCents: card.tl_balance_cents, settingsVersion: machine.settings_version };
+      saveIdempotency(key.key, 'demo_free_play', key.hash, response);
+      run('UPDATE device_simulator_state SET payment_latched = 1, last_payment_at_ms = $now, cooldown_until_ms = $until, updated_at = $updatedAt WHERE machine_id = $id', { $now: now, $until: now + machine.payment_cooldown_ms, $updatedAt: createdAt, $id: machine.id });
+      audit('demo.free_play', actorUserId, { entryId, pulseCommandId, accountId: card.account_id, machineId: machine.id, reason: note });
+      return response;
+    });
+  }
+
   function getPulseCommand(commandId) {
     const command = one('SELECT * FROM pulse_commands WHERE id = $id', { $id: commandId });
     if (!command) throw new DomainError('pulse_not_found', 'Pulse komutu bulunamadı.', 404);
@@ -752,6 +788,7 @@ function createStore(databasePath, options = {}) {
       COALESCE(SUM(CASE WHEN entry_type = 'correction' THEN amount_cents ELSE 0 END), 0) AS corrections_cents,
       COALESCE(SUM(CASE WHEN entry_type = 'bonus' THEN amount_cents ELSE 0 END), 0) AS bonuses_cents,
       COALESCE(SUM(CASE WHEN entry_type = 'free_play' THEN -amount_cents ELSE 0 END), 0) AS free_play_cents,
+      COALESCE(SUM(CASE WHEN entry_type = 'free_play' THEN 1 ELSE 0 END), 0) AS free_plays_count,
       COUNT(*) AS ledger_count FROM ledger_entries`);
     return { ...row, accountCount: one('SELECT COUNT(*) AS count FROM accounts').count, cardCount: one('SELECT COUNT(*) AS count FROM cards').count, machineCount: one('SELECT COUNT(*) AS count FROM machines').count, pulseCount: one('SELECT COUNT(*) AS count FROM pulse_commands').count };
   }
@@ -794,13 +831,14 @@ function createStore(databasePath, options = {}) {
       FROM ledger_entries l LEFT JOIN pulse_commands p ON l.idempotency_key = p.idempotency_key || ':ledger'
       LEFT JOIN machines m ON m.id = p.machine_id
       WHERE l.created_at >= $start AND l.created_at < $end AND l.created_at <= $now`, params);
-    const totals = { topups_cents: 0, game_charges_cents: 0, corrections_cents: 0 };
+    const totals = { topups_cents: 0, game_charges_cents: 0, corrections_cents: 0, free_plays_count: 0 };
     const commandStatus = { succeeded: 0, ambiguous: 0, pending: 0, failed: 0, missing: 0 };
     const byBucket = new Map();
     const byMachine = new Map();
     for (const row of rows) {
       if (row.entry_type === 'topup') totals.topups_cents += row.amount_cents;
       if (row.entry_type === 'correction') totals.corrections_cents += row.amount_cents;
+      if (row.entry_type === 'free_play') totals.free_plays_count++;
       if (row.entry_type !== 'game_charge') continue;
       const cents = -row.amount_cents;
       totals.game_charges_cents += cents;
@@ -830,7 +868,7 @@ function createStore(databasePath, options = {}) {
   return {
     dbPath: resolvedPath, close, getConfig, setConfig, createUser, authenticate, sessionUser, revokeSession, setStaffLocked, issueDemoPasswordReset, completeDemoPasswordReset,
     createAccount, createDemoAccountCard, attachDemoCard, getAccount, listAccounts, createCard, getCard, setCardLock, listCards,
-    createMachine, getMachine, updateMachine, setMachineTiming, setMachineLed, reportSimulatedSettings, listMachines, topUp, correctBalance, pay, getPulseCommand, simulatePulse,
+    createMachine, getMachine, updateMachine, setMachineTiming, setMachineLed, reportSimulatedSettings, listMachines, topUp, correctBalance, pay, demoFreePlay, getPulseCommand, simulatePulse,
     retryPulse, reviewPulse, listPulseReviews, getIdempotency, lookupDemoTopup, listLedger, detailedLedger, listPulses, summary, periodReport, getUserCount: () => one('SELECT COUNT(*) AS count FROM users').count,
     getUsers: () => many('SELECT id, username, role, locked, created_at FROM users ORDER BY created_at'),
     getDemoState: getDeviceState,

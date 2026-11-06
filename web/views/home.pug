@@ -180,6 +180,14 @@ body.bg-dark.text-white
                 h2.h5 Demo işlem özeti
                 p#demoTotals
                 p.small Yükleme, harcama ve net düzeltme ayrıdır; toplam bakiye tüm demo hesaplarındadır.
+                h2.h5 Gerekçeli ücretsiz demo oyun
+                p.small Yalnız yönetici için demo varsayımıdır; gerçek işletme kuralı değildir. Önce seçili sanal cihazda seçili kartı yaklaştırın. İşlem bakiye değiştirmez, yalnız bir sanal komut oluşturur.
+                form#demoFreePlayForm
+                    label(for='demoFreePlayReason') Gerekçe (10–1000 karakter)
+                    textarea#demoFreePlayReason.form-control(required minlength='10' maxlength='1000')
+                    button.btn.btn-warning.mt-2(type='submit') Ücretsiz demo oyun kaydet
+                p#demoFreePlayPending.alert.alert-warning.mt-2(hidden)
+                button#demoFreePlayRetry.btn.btn-outline-warning(type='button' hidden) Aynı ücretsiz oyun isteğini doğrula
                 h2.h5 Dönemsel demo oyun harcaması
                 p.small İstanbul saati; seçilen tarihi içeren gün, Pazartesi başlayan hafta, ay veya yıl. Boş tarih bugün demektir. Oyun harcaması demo bakiye kesintisidir, gerçek gelir veya fiziksel kredi değildir; yükleme ikinci kez gelir olarak eklenmez.
                 label(for='demoReportPeriod') Dönem

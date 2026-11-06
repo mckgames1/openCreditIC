@@ -8,4 +8,5 @@
 - Kart çekilme süresi ve ödeme cooldown değerleri saha ölçümüyle hangi varsayılanlara ayarlanacak?
 - Geç gelen ticket için oyun sonu/hazır sinyali ve oyuncu sahipliği politikası nedir? Bu doğrulanana kadar gerçek ticket açılmayacak.
 - İşletme/şube ayrımı ve gerçek cihaz kimlik iptali için dağıtım modeli nedir?
+- Ücretsiz oyunu gerçek işletmede kim, hangi gerekçelerle ve hangi cihaz/kart koşullarında verebilir; limit veya onay akışı gerekli midir? Mevcut yalnız yönetici ve gerekçeli sıfır ücretli işlem demo varsayımıdır.
 - Depo için ticari dağıtım lisansı nedir? Mevcut README uyarısı korunmalı; lisans sahibi doğrulanmadan yeni lisans eklenmemeli.

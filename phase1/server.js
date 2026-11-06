@@ -67,6 +67,7 @@ function reportCsv(report, generatedAt) {
   row('İşlem özeti', 'Yükleme', '', report.totals.topups_cents);
   row('İşlem özeti', 'Oyun harcaması', '', report.totals.game_charges_cents);
   row('İşlem özeti', 'Net bakiye düzeltmesi', '', report.totals.corrections_cents);
+  row('İşlem özeti', 'Ücretsiz demo oyun adedi', String(report.totals.free_plays_count ?? 0));
   row('Anlık durum', 'Şu anki toplam bakiye; dönem sonu bakiyesi değildir', '', report.balance_cents);
   for (const [status, label] of Object.entries({ ambiguous: 'Belirsiz', pending: 'Bekleyen', failed: 'Başarısız', missing: 'Komut kaydı yok', succeeded: 'Sanal olarak başarılı' })) {
     row('Oyun harcaması komut durumu (anlık)', label, '', report.commandStatus[status]);
@@ -303,6 +304,11 @@ function createApp({ store, standalone = true }) {
     const uid = normalizeUid(req.body.cardUid || 'DEMO-0001');
     const result = store.pay({ machineId: req.body.machineId || 'DEMO-MACHINE', cardUid: uid, idempotencyKey, actorUserId: req.user.id, simulator: true });
     res.status(result.duplicate ? 200 : result.approved ? 201 : 402).json({ ...result, balanceAfterTl: formatMoney(result.balanceAfterCents), duplicate: Boolean(result.duplicate) });
+  }));
+
+  app.post('/api/admin/demo/free-play', requireAuth, requireRole('admin'), handle(async (req, res) => {
+    const result = store.demoFreePlay({ machineId: req.body.machineId, cardUid: req.body.cardUid, reason: req.body.reason, idempotencyKey: req.body.idempotencyKey, actorUserId: req.user.id });
+    res.status(result.duplicate ? 200 : 201).json(result);
   }));
 
   app.post('/api/demo/pulse/:id/simulate', requireAuth, requireRole('admin', 'staff'), handle(async (req, res) => {

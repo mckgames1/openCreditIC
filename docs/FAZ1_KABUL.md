@@ -7,6 +7,7 @@ Kaynak: `MCK_CARD_CODEX_BASLANGIC(1).txt`, bölüm 10. Durum 2026-11-06; yalnız
 - SQLite, kuruş bazlı bakiye ve işlem/komut kalıcılığı: `phase1/core.js`; süreç kesintisi testleri `phase1/test/crash.test.js`.
 - Demo yükleme/oyun, aynı istek tekrarı ve yetersiz bakiye: `phase1/test/http.test.js`. Chromium'da 200 TL yükleme, 50 TL oyun ve 150 TL bakiye denendi.
 - Tanımsız sanal kartın ücret/komut üretmemesi, kart tutulurken gerçek bekleme süresi geçse de ikinci isteğin reddi ve kart gerçek bekleme süresince çekildikten sonra yeni ödemenin kabulü, izole demo HTTP testinde doğrulandı. Tutma/çekme akışı Chromium simülatöründe de denendi; gerçek okuyucu testi değildir.
+- Yönetici gerekçeli ücretsiz demo oyun oluşturabilir; hesap bakiyesi değişmez, tek sanal komut ve ayrı ücretsiz oyun sayısı oluşur. Ücretli harcama ve yükleme toplamlarına eklenmez; bu gerçek işletme kuralı değildir.
 - İki bağımsız süreçte 25 TL yarışında tek harcama/komut: `phase1/test/concurrency.test.js`; gerçek okuyucu testi değildir.
 - Canlı WAL yedeği ve yeni dosyaya geri yükleme: `phase1/test/backup.test.js`.
 - Admin/staff sunucu yetkisi, personelin kendi geçmişi: `phase1/server.js`, `phase1/test/http.test.js`.
@@ -29,13 +30,13 @@ Kaynak: `MCK_CARD_CODEX_BASLANGIC(1).txt`, bölüm 10. Durum 2026-11-06; yalnız
 - Yükleme tekrarı API'de idempotent; ana Pug ve simülatör ekranları aynı tarayıcı profilinde tarayıcı/sekme kapanışı sonrası bekleyen isteği saklayıp aynı kullanıcıyla doğrular. Profil verisi silinirse, gizli sekme kapanırsa veya başka cihaz kullanılırsa bu istemci kaydı korunmaz; sunucu tabanlı bekleyen istek kuyruğu yoktur. Farklı sekmelerde eşzamanlı bağımsız yeni yüklemeleri tek işlem saymaz.
 - Yönetici, bilinen istek kimliğiyle merkezde tamamlanmış demo yüklemeyi salt okunur sorgulayabilir. Kayıt bulunmaması veya tutarsızlık belirsizdir; istek kimliği kaybolursa bu sorgu onu geri getirmez ve otomatik iptal/iade yapmaz.
 - Simülatör kart kaldırma ve bekleme mantığı var; kısa RF kopması fiziksel okuyucuda test edilmedi.
-- İşlem türleri veri modelinde ayrılabilse de iade, bonus, ücretsiz oyun işlemleri ve raporları uçtan uca tamamlanmadı.
+- İşlem türleri veri modelinde ayrılabilse de iade ve bonus işlemleri ve raporları uçtan uca tamamlanmadı; ücretsiz oyun yalnız gerekçeli sıfır ücretli demo ile sınırlıdır.
 - Yerel varlıklar mevcut; gerçek internet kesilerek tam çevrimdışı kabul testi yapılmadı.
 
 ## Yapılmayan
 
 - Gerçek okuyucu, GPIO veya fiziksel pulse testleri; Faz 2 kapsamındadır.
-- Windows betikleri eklendi; yerel Windows testinden 18/18 sonucu ve test uyumluluğu düzeltmeleri bildirildi. Bu çalışma ortamında Windows testi tekrar edilmedi.
+- Windows betikleri eklendi; `0c8a04a` için Windows'ta 38/38 test ve 200/50/150 demo akışı bildirildi. Sonraki ücretsiz oyun değişikliği Windows'ta henüz test edilmedi.
 - Gerçek para işlemleri, iade politikası ve tamamlanmamış Faz 1 kabul testleri; üretime hazırlık iddiası yoktur.
 - Gerçek JSON bakiyelerinin dönüştürülmesi; demo ayrı SQLite kullanır.
 

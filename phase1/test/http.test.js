@@ -829,3 +829,81 @@ test('admin-only read-only topup lookup reports confirmed, unknown and inconsist
     assert.equal(running.store.summary().ledger_count, priorCount);
   } finally { await running.close(); }
 });
+
+test('reasoned admin demo free play is atomic, idempotent and separate from paid reports', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencredit-free-play-'));
+  const databasePath = path.join(dir, 'demo.sqlite');
+  let running = startServer({ host: '127.0.0.1', port: 0, databasePath });
+  await new Promise(resolve => running.server.once('listening', resolve));
+  let base = `http://127.0.0.1:${running.server.address().port}`;
+  const post = (url, body, cookie) => jsonRequest(base, url, { method: 'POST', body: JSON.stringify(body) }, cookie);
+  try {
+    const admin = (await post('/phase1/api/setup', { username: 'admin', password: 'correct horse battery staple' })).cookie;
+    await post('/phase1/api/admin/users', { username: 'staff', password: 'staff password 1', role: 'staff' }, admin);
+    const staff = (await post('/phase1/api/auth/login', { username: 'staff', password: 'staff password 1' })).cookie;
+    const endpoint = '/phase1/api/admin/demo/free-play';
+    const body = { machineId: 'DEMO-MACHINE', cardUid: 'DEMO-0001', reason: 'Demo amaçlı ücretsiz deneme', idempotencyKey: 'freeplay-demo-test-001' };
+    assert.equal((await post(endpoint, body)).response.status, 401);
+    assert.equal((await post(endpoint, body, staff)).response.status, 403);
+    assert.equal((await post(endpoint, { ...body, reason: 'short' }, admin)).response.status, 400);
+    assert.equal((await post(endpoint, body, admin)).data.error, 'card_not_present');
+    assert.equal(running.store.summary().pulseCount, 0);
+    await post('/phase1/api/topups', { accountId: 'demo-account', amountTl: '100', idempotencyKey: 'freeplay-topup-test-001' }, admin);
+    await post('/phase1/api/demo/simulator/card', { action: 'approach', cardUid: 'DEMO-0001' }, admin);
+    const first = await post(endpoint, body, admin);
+    assert.equal(first.response.status, 201);
+    assert.equal(first.data.balanceAfterCents, 10000);
+    assert.equal(running.store.getPulseCommand(first.data.pulseCommandId).amount_cents, 0);
+    assert.equal((await post(endpoint, body, admin)).data.duplicate, true);
+    assert.equal((await post(endpoint, { ...body, reason: 'Farklı geçerli gerekçe' }, admin)).response.status, 409);
+    assert.equal((await post(endpoint, { ...body, idempotencyKey: 'freeplay-held-test-001' }, admin)).data.error, 'card_hold_required');
+    assert.equal(running.store.summary().pulseCount, 1);
+    const state = (await jsonRequest(base, '/phase1/api/state', {}, admin)).data;
+    assert.equal(state.summary.topups_cents, 10000);
+    assert.equal(state.summary.game_charges_cents, 0);
+    assert.equal(state.summary.free_plays_count, 1);
+    assert.equal(state.ledger.find(entry => entry.id === first.data.entryId).entry_type, 'free_play');
+    assert.equal(state.ledger.find(entry => entry.id === first.data.entryId).note, body.reason);
+    const report = (await jsonRequest(base, '/phase1/api/report/period?period=day', {}, admin)).data.report;
+    assert.equal(report.totals.free_plays_count, 1);
+    assert.equal(report.totals.game_charges_cents, 0);
+    const csv = await (await fetch(`${base}/phase1/api/report/period.csv?period=day`, { headers: { Cookie: admin } })).text();
+    assert.ok(csv.includes('Ücretsiz demo oyun adedi'));
+    await post(`/phase1/api/demo/pulse/${first.data.pulseCommandId}/simulate`, { outcome: 'response_lost' }, admin);
+    assert.equal((await post(`/phase1/api/demo/pulse/${first.data.pulseCommandId}/retry`, {}, admin)).response.status, 409);
+    await running.close();
+    running = startServer({ host: '127.0.0.1', port: 0, databasePath });
+    await new Promise(resolve => running.server.once('listening', resolve));
+    base = `http://127.0.0.1:${running.server.address().port}`;
+    const retry = await post(endpoint, body, admin);
+    assert.equal(retry.data.duplicate, true);
+    assert.equal(retry.data.pulseCommandId, first.data.pulseCommandId);
+    assert.equal(running.store.getAccount('demo-account').tl_balance_cents, 10000);
+    assert.equal(running.store.summary().pulseCount, 1);
+    assert.equal(running.store.getPulseCommand(first.data.pulseCommandId).status, 'ambiguous');
+  } finally { await running.close(); }
+});
+
+test('demo free play rolls back ledger if simulated command insert fails', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencredit-free-rollback-'));
+  const databasePath = path.join(dir, 'demo.sqlite');
+  const running = startServer({ host: '127.0.0.1', port: 0, databasePath });
+  await new Promise(resolve => running.server.once('listening', resolve));
+  const base = `http://127.0.0.1:${running.server.address().port}`;
+  const post = (url, body, cookie) => jsonRequest(base, url, { method: 'POST', body: JSON.stringify(body) }, cookie);
+  try {
+    const admin = (await post('/phase1/api/setup', { username: 'admin', password: 'correct horse battery staple' })).cookie;
+    await post('/phase1/api/demo/simulator/card', { action: 'approach', cardUid: 'DEMO-0001' }, admin);
+    const { DatabaseSync } = require('node:sqlite');
+    const db = new DatabaseSync(databasePath);
+    db.exec("CREATE TRIGGER demo_fail_pulse BEFORE INSERT ON pulse_commands BEGIN SELECT RAISE(ABORT, 'simulated insert failure'); END");
+    db.close();
+    const actor = (await jsonRequest(base, '/phase1/api/state', {}, admin)).data.user.id;
+    assert.throws(() => running.store.demoFreePlay({ machineId: 'DEMO-MACHINE', cardUid: 'DEMO-0001', reason: 'Demo başarısızlık testi', idempotencyKey: 'freeplay-rollback-001', actorUserId: actor }), /simulated insert failure/);
+    assert.equal(running.store.summary().free_plays_count, 0);
+    assert.equal(running.store.summary().pulseCount, 0);
+    assert.equal(running.store.getAccount('demo-account').tl_balance_cents, 0);
+    assert.equal(running.store.getIdempotency('freeplay-rollback-001'), null);
+    assert.equal(running.store.getDemoState('DEMO-MACHINE').payment_latched, 0);
+  } finally { await running.close(); }
+});

@@ -41,6 +41,22 @@ test('two same-balance payment attempts cannot both pass', () => {
   } finally { store.close(); }
 });
 
+test('demo free play count is separate from paid charge and topup totals', () => {
+  const { store } = freshStore();
+  try {
+    store.topUp({ accountId: 'demo-account', cardUid: 'DEMO-0001', amountCents: 10000, idempotencyKey: 'free-mixed-topup-001' });
+    store.pay({ machineId: 'DEMO-MACHINE', cardUid: 'DEMO-0001', idempotencyKey: 'free-mixed-paid-001' });
+    store.setDemoState({ cardUid: 'DEMO-0001', present: true }, 'DEMO-MACHINE');
+    store.demoFreePlay({ machineId: 'DEMO-MACHINE', cardUid: 'DEMO-0001', reason: 'Demo ücretsiz test oyunu', idempotencyKey: 'free-mixed-play-001', actorUserId: null });
+    assert.equal(store.getAccount('demo-account').tl_balance_cents, 7500);
+    const report = store.periodReport('day');
+    assert.equal(report.totals.topups_cents, 10000);
+    assert.equal(report.totals.game_charges_cents, 2500);
+    assert.equal(report.totals.free_plays_count, 1);
+    assert.equal(store.summary().pulseCount, 2);
+  } finally { store.close(); }
+});
+
 test('pulse retry keeps the original command and payment record', () => {
   const { store } = freshStore();
   try {

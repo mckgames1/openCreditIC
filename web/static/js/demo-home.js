@@ -41,6 +41,10 @@
       detailRequest++;
       for (const id of ['demoResetIssueResult', 'demoReportTotals', 'demoReportCommands', 'demoReportChart', 'demoReportMachines', 'demoPulseRows', 'demoDetailRows', 'demoDetailStatus', 'demoTopupLookupResult']) document.getElementById(id).replaceChildren();
       document.getElementById('demoTopupLookupKey').value = '';
+      document.getElementById('demoFreePlayForm').reset();
+      document.getElementById('demoFreePlayPending').textContent = '';
+      document.getElementById('demoFreePlayPending').hidden = true;
+      document.getElementById('demoFreePlayRetry').hidden = true;
     }
     document.getElementById('demoHistory').hidden = false;
     document.getElementById('demoHistoryScope').textContent = isAdmin ? 'Son 25 demo hareketi' : 'Son 25 kendi demo hareketiniz';
@@ -48,8 +52,8 @@
     history.replaceChildren();
     for (const entry of data.ledger) {
       const row = document.createElement('tr');
-      let type = { topup: 'Yükleme', game_charge: 'Oyun harcaması', correction: 'Düzeltme' }[entry.entry_type] || entry.entry_type;
-      if (isAdmin && entry.entry_type === 'correction' && entry.note) type += ` — ${entry.note}`;
+      let type = { topup: 'Yükleme', game_charge: 'Oyun harcaması', correction: 'Düzeltme', free_play: 'Ücretsiz demo oyun' }[entry.entry_type] || entry.entry_type;
+      if (isAdmin && ['correction', 'free_play'].includes(entry.entry_type) && entry.note) type += ` — ${entry.note}`;
       for (const value of [entry.created_at, type, (entry.amount_cents / 100).toFixed(2) + ' TL', (entry.balance_after_cents / 100).toFixed(2) + ' TL', entry.id]) {
         const cell = document.createElement('td');
         cell.textContent = value;
@@ -105,7 +109,8 @@
       document.getElementById('demoCardStatus').textContent = `${card.uid}: ${card.locked ? 'Engelli' : 'Aktif'}`;
       document.getElementById('demoCardLock').textContent = card.locked ? 'Kart engelini kaldır' : 'Kartı engelle';
       const tl = value => (Number(value) / 100).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' TL';
-      document.getElementById('demoTotals').textContent = `Yükleme: ${tl(data.summary.topups_cents)} · Harcama: ${tl(data.summary.game_charges_cents)} · Net düzeltme: ${tl(data.summary.corrections_cents)} · Kalan bakiye: ${tl(data.accounts.reduce((sum, item) => sum + item.tl_balance_cents, 0))}`;
+      document.getElementById('demoTotals').textContent = `Yükleme: ${tl(data.summary.topups_cents)} · Harcama: ${tl(data.summary.game_charges_cents)} · Net düzeltme: ${tl(data.summary.corrections_cents)} · Ücretsiz demo oyun: ${data.summary.free_plays_count} adet · Kalan bakiye: ${tl(data.accounts.reduce((sum, item) => sum + item.tl_balance_cents, 0))}`;
+      showPendingFreePlay();
       await refreshReport();
       showPendingCorrection();
       const machineSelect = document.getElementById('demoMachine');
@@ -165,7 +170,8 @@
       for (const entry of data.rows) {
         const row = document.createElement('tr');
         const device = entry.machine_id ? `${entry.machine_name || entry.machine_id} (${entry.machine_id}) / ${statuses[entry.command_status] || 'Komut kaydı yok'}` : '—';
-        for (const value of [entry.created_at, types[entry.entry_type] || entry.entry_type, (entry.amount_cents / 100).toFixed(2), (entry.balance_after_cents / 100).toFixed(2) + ' TL', device, entry.id]) {
+        const type = (types[entry.entry_type] || entry.entry_type) + (entry.entry_type === 'free_play' && entry.note ? ` — ${entry.note}` : '');
+        for (const value of [entry.created_at, type, (entry.amount_cents / 100).toFixed(2), (entry.balance_after_cents / 100).toFixed(2) + ' TL', device, entry.id]) {
           const cell = document.createElement('td'); cell.textContent = value; row.append(cell);
         }
         tbody.append(row);
@@ -205,7 +211,7 @@
       if (request !== reportRequest) return;
       const report = data.report;
       const tl = cents => (cents / 100).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' TL';
-      document.getElementById('demoReportTotals').textContent = `İstanbul dönemi: ${report.start} – ${report.end} (bitiş hariç) · Dönem yüklemesi: ${tl(report.totals.topups_cents)} · Dönem oyun harcaması: ${tl(report.totals.game_charges_cents)} · Dönem net düzeltmesi: ${tl(report.totals.corrections_cents)} · Şu anki toplam bakiye: ${tl(report.balance_cents)}`;
+      document.getElementById('demoReportTotals').textContent = `İstanbul dönemi: ${report.start} – ${report.end} (bitiş hariç) · Dönem yüklemesi: ${tl(report.totals.topups_cents)} · Dönem oyun harcaması: ${tl(report.totals.game_charges_cents)} · Dönem net düzeltmesi: ${tl(report.totals.corrections_cents)} · Ücretsiz demo oyun: ${report.totals.free_plays_count} adet · Şu anki toplam bakiye: ${tl(report.balance_cents)}`;
       const status = report.commandStatus;
       document.getElementById('demoReportCommands').textContent = `Sanal komut sonucu belirsiz kesinti: ${tl(status.ambiguous)} · Bekleyen: ${tl(status.pending)} · Başarısız: ${tl(status.failed)} · Komut kaydı bulunmayan: ${tl(status.missing)} · Sanal olarak başarılı: ${tl(status.succeeded)}`;
       const chart = document.getElementById('demoReportChart');
@@ -240,6 +246,45 @@
   }
   document.getElementById('demoReportPeriod').addEventListener('change', refreshReport);
   document.getElementById('demoReportDate').addEventListener('change', refreshReport);
+  const freePlayKey = 'opencreditPendingDemoFreePlay';
+  function pendingFreePlay() { return JSON.parse(sessionStorage.getItem(freePlayKey) || 'null'); }
+  function showPendingFreePlay() {
+    const label = document.getElementById('demoFreePlayPending'); const retry = document.getElementById('demoFreePlayRetry');
+    try {
+      const pending = pendingFreePlay();
+      label.hidden = !pending; retry.hidden = !pending;
+      if (pending) label.textContent = currentUser?.id === pending.userId ? `Sonucu bilinmeyen ücretsiz demo oyun: ${pending.body.machineId} · ${pending.body.cardUid}. Aynı istekle doğrulayın; yeni işlem başlatılamaz.` : 'Başka yöneticiye ait bekleyen ücretsiz demo oyun var; o kullanıcıyla doğrulayın.';
+    } catch (_) { label.hidden = false; retry.hidden = true; label.textContent = 'Bekleyen ücretsiz demo oyun kaydı okunamıyor; yeni işlem göndermeyin.'; }
+  }
+  async function sendFreePlay() {
+    let pending;
+    try { pending = pendingFreePlay(); } catch (_) { showPendingFreePlay(); return; }
+    if (!pending) return;
+    if (currentUser?.id !== pending.userId || currentUser?.role !== 'admin') return tell('İşlemi başlatan yöneticiyle giriş yapın.');
+    const button = document.querySelector('#demoFreePlayForm button'); const retry = document.getElementById('demoFreePlayRetry');
+    if (button.disabled || retry.disabled) return;
+    button.disabled = true; retry.disabled = true;
+    try {
+      const result = await api('admin/demo/free-play', pending.body);
+      sessionStorage.removeItem(freePlayKey); showPendingFreePlay();
+      document.getElementById('demoFreePlayForm').reset();
+      await refresh(pending.body.cardUid);
+      tell(`${result.duplicate ? 'Önceki ücretsiz demo oyun doğrulandı' : 'Ücretsiz demo oyun kaydedildi'}; sanal komut ${result.pulseCommandId}. Bakiye değişmedi.`);
+    } catch (error) { tell(`${error.message} Bekleyen demo isteği korunuyor; aynı istekle doğrulayın.`); }
+    finally { button.disabled = false; retry.disabled = false; }
+  }
+  document.getElementById('demoFreePlayForm').addEventListener('submit', async event => {
+    event.preventDefault();
+    if (!currentUser || currentUser.role !== 'admin' || !card) return tell('Önce yönetici olarak giriş yapıp sanal kart seçin.');
+    try {
+      if (pendingFreePlay()) return tell('Önce bekleyen ücretsiz demo oyun isteğini doğrulayın.');
+      const body = { machineId: document.getElementById('demoMachine').value, cardUid: card.uid, reason: document.getElementById('demoFreePlayReason').value.trim(), idempotencyKey: 'freeplay-' + crypto.randomUUID() };
+      if (body.reason.length < 10) return tell('Gerekçe en az 10 karakter olmalıdır.');
+      sessionStorage.setItem(freePlayKey, JSON.stringify({ userId: currentUser.id, body }));
+      showPendingFreePlay(); await sendFreePlay();
+    } catch (_) { tell('Bekleyen demo isteği kaydedilemedi veya okunamadı; yeni işlem göndermeyin.'); }
+  });
+  document.getElementById('demoFreePlayRetry').addEventListener('click', sendFreePlay);
   document.getElementById('demoReportCsv').addEventListener('click', async event => {
     const button = event.currentTarget;
     button.disabled = true;

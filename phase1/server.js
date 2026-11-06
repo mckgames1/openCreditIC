@@ -156,7 +156,8 @@ function createApp({ store, standalone = true }) {
   }));
 
   app.post('/api/cards/:uid/lock', requireAuth, requireRole('admin'), handle(async (req, res) => {
-    res.json({ ok: true, card: publicCard(store.setCardLock(req.params.uid, Boolean(req.body.locked), req.user.id)) });
+    if (typeof req.body.locked !== 'boolean') throw new DomainError('invalid_lock_state', 'Kart durumu true veya false olmalıdır.');
+    res.json({ ok: true, card: publicCard(store.setCardLock(req.params.uid, req.body.locked, req.user.id)) });
   }));
 
   app.post('/api/machines', requireAuth, requireRole('admin'), handle(async (req, res) => {

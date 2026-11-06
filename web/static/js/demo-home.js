@@ -49,6 +49,8 @@
     }
     document.getElementById('demoAdmin').hidden = !isAdmin;
     if (isAdmin) {
+      document.getElementById('demoCardStatus').textContent = `${card.uid}: ${card.locked ? 'Engelli' : 'Aktif'}`;
+      document.getElementById('demoCardLock').textContent = card.locked ? 'Kart engelini kaldır' : 'Kartı engelle';
       const tl = value => (Number(value) / 100).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' TL';
       document.getElementById('demoTotals').textContent = `Yükleme: ${tl(data.summary.topups_cents)} · Harcama: ${tl(data.summary.game_charges_cents)} · Net düzeltme: ${tl(data.summary.corrections_cents)} · Kalan bakiye: ${tl(data.accounts.reduce((sum, item) => sum + item.tl_balance_cents, 0))}`;
       showPendingCorrection();
@@ -77,6 +79,20 @@
     document.getElementById('demoMachineEnabled').checked = machine.enabled;
   }
   document.getElementById('demoMachine').addEventListener('change', showMachine);
+  document.getElementById('demoCardLock').addEventListener('click', async event => {
+    if (!card || !currentUser || currentUser.role !== 'admin') return tell('Yönetici girişi gerekli.');
+    const button = event.currentTarget;
+    const uid = card.uid;
+    const locked = !card.locked;
+    button.disabled = true;
+    document.getElementById('demoCardChoice').disabled = true;
+    try {
+      await api('cards/' + encodeURIComponent(uid) + '/lock', { locked });
+      await refresh(uid);
+      tell(locked ? 'Demo kart engellendi.' : 'Demo kart engeli kaldırıldı.');
+    } catch (error) { tell(error.message + ' Durumu yenileyip kontrol edin.'); }
+    finally { button.disabled = false; document.getElementById('demoCardChoice').disabled = false; }
+  });
   const correctionKey = 'opencreditPendingCorrection';
   function showPendingCorrection() {
     const pending = JSON.parse(sessionStorage.getItem(correctionKey) || 'null');
@@ -159,13 +175,15 @@
   document.getElementById('demoCardChoice').addEventListener('change', async event => {
     const select = event.currentTarget;
     const correctionButton = document.querySelector('#demoCorrectionForm button');
+    const lockButton = document.getElementById('demoCardLock');
     const depositButton = document.querySelector('#depositModal .modal-footer .btn-primary');
     select.disabled = true;
     correctionButton.disabled = true;
+    lockButton.disabled = true;
     depositButton.disabled = true;
     try { await refresh(select.value); }
     catch (error) { account = null; card = null; tell(error.message); }
-    finally { select.disabled = false; correctionButton.disabled = false; depositButton.disabled = false; }
+    finally { select.disabled = false; correctionButton.disabled = false; lockButton.disabled = false; depositButton.disabled = false; }
   });
   window.registerUser = async () => {
     const button = document.querySelector('#newCardModal .modal-footer .btn-primary');

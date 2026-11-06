@@ -18,13 +18,15 @@ Personel ana sayfada demo yükleme yapar ve son 25 kendi hareketini görür. İ�
 
 Yönetici mevcut ana sayfadan demo personel hesabı oluşturabilir. Chromium'da hesap oluşturma, parola alanının temizlenmesi, personel girişi ve demo yükleme doğrulandı. Personel hesap kapatma veya parola sıfırlama ekranı henüz yoktur.
 
+Yönetici aynı sayfada seçili demo kartı engelleyebilir veya engelini kaldırabilir. Tekrarlanan aynı durum isteği ikinci denetim olayı üretmez; engelli kart ödeme yapamaz. Chromium ve HTTP testleriyle doğrulandı.
+
 Ana Pug ekranındaki demo yüklemede yanıt kaybı sonrası aynı sekmede sayfa yenilenirse özgün istek kimliği ve içeriğiyle doğrulama yapılır; Chromium'da sunucu yanıtı kesilerek tek 37 TL yükleme doğrulandı. Sekme kapatılması, farklı tarayıcı veya diğer demo yükleme ekranı için bu kurtarma garantisi yoktur.
 
 ## Test kanıtı
 
 Demo yöneticisi ana Pug sayfasında seçili hesaba gerekçeli artı/eksi düzeltme yapabilir. Bu bir demo varsayımıdır; iade veya gerçek tahsilat değildir. Eski hareketler korunur, düzeltme ve denetim kaydı ayrıdır. Tekrar kimliği ve negatif bakiye kontrolü test edildi; Chromium'da 12,34 TL düşüm ve ayrı özet doğrulandı.
 
-`npm test` sonucu: **19 test geçti, 0 başarısız**. İki bağımsız süreç ve SQLite bağlantısı, iki sanal cihazın 25 TL bakiyeden 25 TL talebini yarış koşulunda çalıştırdı: ikinci bağlantının kilidi beklediği, tek düşüm ve tek komut, her iki isteğin tekrarı ve SQLite bütünlüğü doğrulandı. Bu çekirdek düzeyi testtir; gerçek iki okuyucu veya iki simülatör oturumu testi değildir. Yarış testi ayrıca beş kez geçti. Canlı WAL yedek ve yeni dosyaya geri yükleme test edildi. Ödeme transaction'ında bakiye güncellemesinden sonra, commit öncesinde ve commit sonrasında süreç SIGKILL ile durdurularak yeniden açma ve tekrar test edildi. Yönetici inceleme yetkisi, fiyat/pulse sınırları, personel geçmişi ve kalıcılık test edildi. Chromium'da ödeme yanıtı kaybı ve tekrar test edildi; inceleme ekranı henüz tarayıcıda test edilmedi.
+`npm test` sonucu: **20 test geçti, 0 başarısız**. İki bağımsız süreç ve SQLite bağlantısı, iki sanal cihazın 25 TL bakiyeden 25 TL talebini yarış koşulunda çalıştırdı: ikinci bağlantının kilidi beklediği, tek düşüm ve tek komut, her iki isteğin tekrarı ve SQLite bütünlüğü doğrulandı. Bu çekirdek düzeyi testtir; gerçek iki okuyucu veya iki simülatör oturumu testi değildir. Yarış testi ayrıca beş kez geçti. Canlı WAL yedek ve yeni dosyaya geri yükleme test edildi. Ödeme transaction'ında bakiye güncellemesinden sonra, commit öncesinde ve commit sonrasında süreç SIGKILL ile durdurularak yeniden açma ve tekrar test edildi. Yönetici inceleme yetkisi, kart engeli, fiyat/pulse sınırları, personel geçmişi ve kalıcılık test edildi. Chromium'da ödeme yanıtı kaybı ve tekrar test edildi; inceleme ekranı henüz tarayıcıda test edilmedi.
 
 Kapsanan akışlar: 200 TL yükleme, 25 TL ödeme, tekrar istek, bağımsız süreçlerden eşzamanlı iki sanal cihaz isteği, kartı tutarken tekrar yaklaştırma, yetersiz bakiye, demo modunda eski yolların reddi, legacy modunda bir route'un varlığı, fiyat snapshot'ı, yeniden açılışta kalıcılık ve personel API yetki reddi.
 

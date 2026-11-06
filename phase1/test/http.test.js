@@ -259,3 +259,38 @@ test('demo correction is admin-only, atomic, reasoned, idempotent and separated 
     db.close();
   } finally { await running.close(); }
 });
+
+test('admin can block a demo card without duplicate audit; blocked card cannot be charged', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencredit-card-lock-'));
+  const databasePath = path.join(dir, 'demo.sqlite');
+  let running = startServer({ host: '127.0.0.1', port: 0, databasePath });
+  await new Promise(resolve => running.server.once('listening', resolve));
+  let base = `http://127.0.0.1:${running.server.address().port}`;
+  const post = (url, body, cookie) => jsonRequest(base, url, { method: 'POST', body: JSON.stringify(body) }, cookie);
+  try {
+    const admin = (await post('/phase1/api/setup', { username: 'admin', password: 'correct horse battery staple' })).cookie;
+    await post('/phase1/api/admin/users', { username: 'staff', password: 'staff password 1', role: 'staff' }, admin);
+    const staff = (await post('/phase1/api/auth/login', { username: 'staff', password: 'staff password 1' })).cookie;
+    await post('/phase1/api/topups', { accountId: 'demo-account', cardUid: 'DEMO-0001', amountTl: '25', idempotencyKey: 'card-lock-topup-001' }, admin);
+    assert.equal((await post('/phase1/api/cards/DEMO-0001/lock', { locked: true }, staff)).response.status, 403);
+    assert.equal((await post('/phase1/api/cards/DEMO-0001/lock', { locked: 'false' }, admin)).response.status, 400);
+    assert.equal((await post('/phase1/api/cards/DEMO-0001/lock', { locked: true }, admin)).data.card.locked, true);
+    await post('/phase1/api/cards/DEMO-0001/lock', { locked: true }, admin);
+    await post('/phase1/api/demo/simulator/card', { action: 'approach', cardUid: 'DEMO-0001' }, admin);
+    const payment = await post('/phase1/api/demo/payment', { cardUid: 'DEMO-0001', idempotencyKey: 'card-lock-payment-001' }, admin);
+    assert.equal(payment.response.status, 403);
+    assert.equal(running.store.summary().pulseCount, 0);
+    assert.equal(running.store.getAccount('demo-account').tl_balance_cents, 2500);
+    const { DatabaseSync } = require('node:sqlite');
+    const db = new DatabaseSync(databasePath, { readOnly: true });
+    assert.equal(db.prepare("SELECT COUNT(*) AS n FROM audit_log WHERE event_type = 'card.locked'").get().n, 1);
+    db.close();
+    await running.close();
+    running = startServer({ host: '127.0.0.1', port: 0, databasePath });
+    await new Promise(resolve => running.server.once('listening', resolve));
+    base = `http://127.0.0.1:${running.server.address().port}`;
+    assert.equal(running.store.getCard('DEMO-0001').locked, 1);
+    assert.equal((await post('/phase1/api/cards/DEMO-0001/lock', { locked: false }, admin)).data.card.locked, false);
+    assert.equal((await post('/phase1/api/demo/payment', { cardUid: 'DEMO-0001', idempotencyKey: 'card-unlock-payment-001' }, admin)).data.approved, true);
+  } finally { await running.close(); }
+});

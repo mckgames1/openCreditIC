@@ -9,6 +9,7 @@ Kaynak: `MCK_CARD_CODEX_BASLANGIC(1).txt`, bölüm 10. Durum 2026-11-06; yalnız
 - İki bağımsız süreçte 25 TL yarışında tek harcama/komut: `phase1/test/concurrency.test.js`; gerçek okuyucu testi değildir.
 - Canlı WAL yedeği ve yeni dosyaya geri yükleme: `phase1/test/backup.test.js`.
 - Admin/staff sunucu yetkisi, personelin kendi geçmişi: `phase1/server.js`, `phase1/test/http.test.js`.
+- Yönetici ana Pug ekranından seçili demo kartı engelleyebilir veya engeli kaldırabilir; engelli kartta ödeme ve komut reddi ile yeniden başlatma test edildi: `web/static/js/demo-home.js`, `phase1/test/http.test.js`.
 - Sanal ekran, kart yaklaştırma/tutma/çekme, komut geçmişi ve basit tahsilat/harcama/bakiye: `web/views/home.pug`, `phase1/public/`.
 
 ## Kısmi

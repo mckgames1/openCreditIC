@@ -264,10 +264,13 @@ function createStore(databasePath, options = {}) {
   }
 
   function setCardLock(uid, locked, actorUserId) {
-    const card = getCard(uid);
-    run('UPDATE cards SET locked = $locked, updated_at = $updatedAt WHERE uid = $uid', { $uid: card.uid, $locked: locked ? 1 : 0, $updatedAt: isoNow() });
-    audit(locked ? 'card.locked' : 'card.unlocked', actorUserId, { uid: card.uid });
-    return getCard(card.uid);
+    return withImmediateTransaction(() => {
+      const card = getCard(uid);
+      if (Boolean(card.locked) === locked) return card;
+      run('UPDATE cards SET locked = $locked, updated_at = $updatedAt WHERE uid = $uid', { $uid: card.uid, $locked: locked ? 1 : 0, $updatedAt: isoNow() });
+      audit(locked ? 'card.locked' : 'card.unlocked', actorUserId, { uid: card.uid });
+      return getCard(card.uid);
+    });
   }
 
   function createMachine({ id, name, priceCents = 2500, pulseMs = 100, pulseCount = 1, pulseGapMs = 100, actorUserId = null }) {

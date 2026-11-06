@@ -21,7 +21,7 @@ Kaynak: `MCK_CARD_CODEX_BASLANGIC(1).txt`, bölüm 10. Durum 2026-11-06; yalnız
 - Yönetici Pug ana sayfasında demo personeli oluşturabilir, erişimini durdurup açabilir; durdurulan hesabın mevcut oturumu sona erer. Personel parola sıfırlama arayüzü henüz yoktur.
 - Belirsiz komut yönetici gerekçesiyle kaydedilir. Demo için yöneticinin gerekçeli artı/eksi bakiye düzeltmesi vardır; bu ayrı bir kayıttır, otomatik iade veya gerçek ödeme değildir (`phase1/core.js`, `phase1/server.js`).
 - Cihaz fiyat/pulse ve bekleme ayarları sürümlü, işlem ve başlamış bekleme değerleri korunuyor; cihaz başına LED ve uygulama durumu yönetimi tamamlanmadı.
-- Yükleme tekrarı API'de idempotent; ana Pug ekranında aynı sekmedeki yanıt kaybı ve yenileme kurtarma akışı var. Sekme kapatma, tarayıcı kapanması, diğer ekran ve farklı cihaz oturumları kapsanmaz.
+- Yükleme tekrarı API'de idempotent; ana Pug ve simülatör ekranlarında aynı sekmedeki yanıt kaybı ve yenileme kurtarma akışı var. Sekme kapatma, tarayıcı kapanması ve farklı cihaz oturumları kapsanmaz.
 - Simülatör kart kaldırma ve bekleme mantığı var; kısa RF kopması fiziksel okuyucuda test edilmedi.
 - İşlem türleri veri modelinde ayrılabilse de iade, bonus, ücretsiz oyun işlemleri ve raporları uçtan uca tamamlanmadı.
 - Yerel varlıklar mevcut; gerçek internet kesilerek tam çevrimdışı kabul testi yapılmadı.

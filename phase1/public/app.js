@@ -69,7 +69,6 @@ function render(data) {
   $('#user-label').textContent = data.user.username;
   $('#role-label').textContent = data.user.role === 'admin' ? 'YÖNETİCİ' : 'PERSONEL';
   const account = data.accounts[0];
-  const card = data.cards.find((entry) => entry.uid === 'DEMO-0001') || data.cards[0];
   fillSelect($('#sim-machine-select'), data.machines, item => item.id, item => item.name);
   const machine = data.machines.find(item => item.id === selectedMachine()) || data.machines[0];
   $('#balance').textContent = money(account?.tl_balance_cents);
@@ -81,7 +80,8 @@ function render(data) {
   fillSelect($('#account-select'), data.accounts, (item) => item.id, (item) => `${item.name} (${money(item.tl_balance_cents)})`);
   fillSelect($('#card-select'), data.cards, (item) => item.uid, (item) => `${item.uid} · ${item.account_name}`);
   fillSelect($('#sim-card-select'), data.cards, (item) => item.uid, (item) => item.uid);
-  if (card) $('#card-select').value = card.uid;
+  syncTopupCard();
+  showPendingTopup();
   $('#admin-panel').hidden = data.user.role !== 'admin';
   $('#review-panel').hidden = data.user.role !== 'admin';
   if (data.user.role === 'admin') {
@@ -109,6 +109,48 @@ function render(data) {
   }
   renderSimulator(data.simulator);
   renderHistory(data.ledger, data.pulses);
+}
+
+function syncTopupCard() {
+  if (!state.data) return;
+  const card = state.data.cards.find(item => item.uid === $('#card-select').value);
+  if (card) $('#account-select').value = card.account_id;
+}
+
+$('#card-select').addEventListener('change', syncTopupCard);
+$('#account-select').addEventListener('change', () => {
+  const card = state.data?.cards.find(item => item.account_id === $('#account-select').value);
+  if (card) $('#card-select').value = card.uid;
+});
+
+const simTopupKey = 'opencreditPendingSimulatorTopup';
+function pendingTopup() { return JSON.parse(sessionStorage.getItem(simTopupKey) || 'null'); }
+function showPendingTopup() {
+  const pending = pendingTopup();
+  $('#sim-topup-pending').hidden = !pending;
+  $('#sim-topup-retry').hidden = !pending;
+  if (pending) $('#sim-topup-pending').textContent = `Sonucu bilinmeyen demo yükleme: ${pending.body.cardUid} · ${pending.body.amountTl} TL. Aynı kullanıcıyla doğrulayın; yeni yükleme başlatılamaz.`;
+}
+
+async function sendPendingTopup() {
+  const pending = pendingTopup();
+  if (!pending) return;
+  if (!state.data?.user || state.data.user.id !== pending.userId) return showNotice('Bekleyen yüklemeyi başlatan kullanıcıyla giriş yapın.', true);
+  const submit = $('#topup-form button[type="submit"]');
+  const retry = $('#sim-topup-retry');
+  if (submit.disabled || retry.disabled) return;
+  submit.disabled = true;
+  retry.disabled = true;
+  try {
+    const data = await api('/api/topups', { method: 'POST', body: JSON.stringify(pending.body) });
+    sessionStorage.removeItem(simTopupKey);
+    showPendingTopup();
+    showNotice(`${data.duplicate ? 'Önceki yükleme doğrulandı' : 'Demo yükleme tamamlandı'}: ${data.amountTl} TL; bakiye ${data.balanceAfterTl} TL.`);
+    await refresh();
+  } catch (error) {
+    if (error.status === 400 || error.status === 404) { sessionStorage.removeItem(simTopupKey); showPendingTopup(); }
+    showNotice(`${error.message} Sonuç belirsizse aynı isteği doğrulayın.`, true);
+  } finally { submit.disabled = false; retry.disabled = false; }
 }
 
 function renderSimulator(simulator) {
@@ -179,14 +221,15 @@ $('#remove').addEventListener('click', () => runAction('remove'));
 
 $('#topup-form').addEventListener('submit', async (event) => {
   event.preventDefault();
-  try {
-    const body = Object.fromEntries(new FormData(event.currentTarget));
-    body.idempotencyKey = idempotency('topup');
-    const data = await api('/api/topups', { method: 'POST', body: JSON.stringify(body) });
-    showNotice(`${data.amountTl} yüklendi. Yeni bakiye: ${data.balanceAfterTl}.`);
-    await refresh();
-  } catch (error) { showNotice(error.message, true); }
+  if (!state.data?.user) return showNotice('Önce giriş yapın.', true);
+  if (pendingTopup()) return showNotice('Önce bekleyen yüklemeyi doğrulayın.', true);
+  const body = Object.fromEntries(new FormData(event.currentTarget));
+  body.idempotencyKey = idempotency('topup');
+  sessionStorage.setItem(simTopupKey, JSON.stringify({ userId: state.data.user.id, body }));
+  showPendingTopup();
+  await sendPendingTopup();
 });
+$('#sim-topup-retry').addEventListener('click', sendPendingTopup);
 
 async function sendPayment(key, cardOverride, machineOverride) {
   if ($('#sim-connection').value === 'offline') {

@@ -28,7 +28,11 @@ Simülatör ekranı bekleme fiyatını, işlem göstergesini, onay tutarı ve ba
 
 Şema 3 geçişi: Mevcut demo veritabanında geçiş öncesi aynı dizine `demo.sqlite.before-v3-<benzersiz>.sqlite` adlı ayrı tutarlı yedek alınır; ortak süreler mevcut cihazlara kopyalanır, eski veriler silinmez. Geçişten önce eski demo sunucusunu durdurun. Eski sürümde başlamış beklemenin özgün ayarı saklanmadığı için geçiş anındaki ortak değer kullanılır. Yedekleme başarısızsa geçiş başlamaz. Eski ortak ayar API'si demo modunda 410 döndürür; yeni ayarlar cihaz yolunda yapılır. Legacy JSON modu bu geçişe dahil değildir.
 
-Ana Pug ekranındaki demo yüklemede yanıt kaybı sonrası aynı sekmede sayfa yenilenirse özgün istek kimliği ve içeriğiyle doğrulama yapılır; Chromium'da sunucu yanıtı kesilerek tek 37 TL yükleme doğrulandı. Sekme kapatılması, farklı tarayıcı veya diğer demo yükleme ekranı için bu kurtarma garantisi yoktur.
+Ana Pug ve simülatör ekranındaki demo yüklemelerde yanıt kaybı sonrası aynı sekmede sayfa yenilenirse özgün istek kimliği ve içeriğiyle doğrulama yapılır. Chromium'da iki ekranda da sunucu yanıtı kesilerek tek yükleme doğrulandı. Sekme kapatılması veya farklı tarayıcı için bu kurtarma garantisi yoktur.
+
+## Gerçek RFID okuyucu durumu
+
+Mevcut `CardReader-Game/CardReader-Game.ino:327` UID baytlarını baştaki sıfırları her baytta koruyacak şekilde biçimlendirmiyor; `:662` eski `withdraw` yoluna anahtarı URL içinde gönderiyor; `:750` sabit 100 ms fiziksel çıkış örneği içeriyor. `:35` OLED sürücüsüdür. Bu firmware yeni demo ödeme/komut akışına bağlanmış veya donanımda doğrulanmış değildir. RC522/ESP32 bağlantısı, cihaz kimliği ve güvenli haberleşme, gerçek pulse davranışı ve elektriksel testler Faz 2'de ayrıca ele alınmalıdır. 1,69 inç 240×280 ekran adayının sürücüsü doğrulanmamıştır; kesin panel veya pin seçimi yapılmadı.
 
 ## Test kanıtı
 

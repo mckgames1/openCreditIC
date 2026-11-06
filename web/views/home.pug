@@ -60,6 +60,12 @@ body.bg-dark.text-white
                 p#demoAccount.mt-3.mb-0 Giriş bekleniyor.
                 label(for='demoCardChoice') Sanal kart seçimi
                 select#demoCardChoice.form-control
+                form#demoAttachCardForm.mt-3
+                    label(for='demoAttachUid') Seçili hesaba başka sanal kart ekle (yalnız demo)
+                    input#demoAttachUid.form-control(required maxlength='128' placeholder='Sanal UID, ör. 00112233' autocomplete='off')
+                    button.btn.btn-outline-primary.mt-2(type='submit') Sanal kartı bağla
+                p#demoAttachPending.alert.alert-warning.text-dark.mt-2(hidden)
+                button#demoAttachRetry.btn.btn-warning(type='button' hidden) Bekleyen kart bağlamayı doğrula
                 a.btn.btn-outline-primary.mt-2(href='/phase1/') Makine simülatörüne git
                 p#demoNotice(role='status')
                 p#demoPendingNotice.alert.alert-warning.text-dark(hidden)

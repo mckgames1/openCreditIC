@@ -1,6 +1,6 @@
 'use strict';
 
-const state = { data: null, lastPaymentKey: null, lastPulseId: null };
+const state = { data: null, lastPaymentKey: null, lastPaymentCard: null, lastPulseId: null };
 const $ = (selector) => document.querySelector(selector);
 const API_BASE = location.pathname === '/phase1' || location.pathname.startsWith('/phase1/') ? '/phase1' : '';
 
@@ -158,10 +158,10 @@ $('#topup-form').addEventListener('submit', async (event) => {
   } catch (error) { showNotice(error.message, true); }
 });
 
-async function sendPayment(key) {
+async function sendPayment(key, cardOverride) {
   let pending = JSON.parse(sessionStorage.getItem('demoPendingPayment') || 'null');
   if (!key && pending) { key = pending.key; }
-  const cardUid = pending && pending.key === key ? pending.cardUid : selectedCard();
+  const cardUid = pending && pending.key === key ? pending.cardUid : (cardOverride || selectedCard());
   key ||= idempotency('payment');
   sessionStorage.setItem('demoPendingPayment', JSON.stringify({ key, cardUid }));
   $('#pay').disabled = true;
@@ -174,6 +174,7 @@ async function sendPayment(key) {
       return;
     }
     state.lastPaymentKey = key;
+    state.lastPaymentCard = cardUid;
     sessionStorage.removeItem('demoPendingPayment');
     state.lastPulseId = data.pulseCommandId || state.lastPulseId;
     $('#repeat-pay').disabled = false;
@@ -188,7 +189,7 @@ async function sendPayment(key) {
 }
 
 $('#pay').addEventListener('click', () => sendPayment());
-$('#repeat-pay').addEventListener('click', () => { if (state.lastPaymentKey) sendPayment(state.lastPaymentKey); });
+$('#repeat-pay').addEventListener('click', () => { if (state.lastPaymentKey) sendPayment(state.lastPaymentKey, state.lastPaymentCard); });
 
 document.querySelectorAll('.outcome').forEach((button) => button.addEventListener('click', async () => {
   if (!state.lastPulseId) return showNotice('Önce bir ödeme komutu oluşturun.', true);

@@ -31,6 +31,7 @@
     if (!account) throw new Error('Demo kartı bulunamadı.');
     document.getElementById('demoAccount').textContent = `${account.name} · Sanal kart ${card.uid} · Bakiye ${(account.tl_balance_cents / 100).toFixed(2)} TL`;
     showPending();
+    showPendingCardLink();
     const isAdmin = data.user.role === 'admin';
     document.getElementById('demoHistory').hidden = false;
     document.getElementById('demoHistoryScope').textContent = isAdmin ? 'Son 25 demo hareketi' : 'Son 25 kendi demo hareketiniz';
@@ -79,6 +80,47 @@
     document.getElementById('demoMachineEnabled').checked = machine.enabled;
   }
   document.getElementById('demoMachine').addEventListener('change', showMachine);
+  const attachKey = 'opencreditPendingCardLink';
+  function showPendingCardLink() {
+    const pending = JSON.parse(sessionStorage.getItem(attachKey) || 'null');
+    const message = document.getElementById('demoAttachPending');
+    message.hidden = !pending;
+    document.getElementById('demoAttachRetry').hidden = !pending;
+    if (pending) message.textContent = `Sonucu bilinmeyen sanal kart bağlama: ${pending.body.uid} · ${pending.body.accountId}. Aynı kullanıcıyla doğrulayın.`;
+  }
+  async function sendCardLink() {
+    const pending = JSON.parse(sessionStorage.getItem(attachKey) || 'null');
+    if (!pending) return;
+    if (!currentUser || currentUser.id !== pending.userId) return tell('İşlemi başlatan kullanıcıyla giriş yapın.');
+    const button = document.querySelector('#demoAttachCardForm button');
+    const retry = document.getElementById('demoAttachRetry');
+    if (button.disabled || retry.disabled) return;
+    button.disabled = true;
+    retry.disabled = true;
+    try {
+      const result = await api('demo/attach-card', pending.body);
+      sessionStorage.removeItem(attachKey);
+      showPendingCardLink();
+      document.getElementById('demoAttachCardForm').reset();
+      await refresh(result.card.uid);
+      tell(`Sanal kart ${result.card.uid} hesaba ${result.duplicate ? 'önceden bağlanmış' : 'bağlandı'}.`);
+    } catch (error) {
+      if (error.status === 400 || error.status === 404 || error.code === 'card_exists' || error.code === 'account_locked') { sessionStorage.removeItem(attachKey); showPendingCardLink(); }
+      tell(error.message);
+    } finally { button.disabled = false; retry.disabled = false; }
+  }
+  document.getElementById('demoAttachCardForm').addEventListener('submit', async event => {
+    event.preventDefault();
+    if (!account || !currentUser) return tell('Önce giriş yapın.');
+    if (sessionStorage.getItem(attachKey)) return tell('Önce bekleyen kart bağlamayı doğrulayın.');
+    sessionStorage.setItem(attachKey, JSON.stringify({ userId: currentUser.id, body: {
+      accountId: account.id, uid: document.getElementById('demoAttachUid').value,
+      idempotencyKey: 'attach-' + crypto.randomUUID()
+    } }));
+    showPendingCardLink();
+    await sendCardLink();
+  });
+  document.getElementById('demoAttachRetry').addEventListener('click', sendCardLink);
   document.getElementById('demoCardLock').addEventListener('click', async event => {
     if (!card || !currentUser || currentUser.role !== 'admin') return tell('Yönetici girişi gerekli.');
     const button = event.currentTarget;
@@ -175,15 +217,17 @@
   document.getElementById('demoCardChoice').addEventListener('change', async event => {
     const select = event.currentTarget;
     const correctionButton = document.querySelector('#demoCorrectionForm button');
+    const attachButton = document.querySelector('#demoAttachCardForm button');
     const lockButton = document.getElementById('demoCardLock');
     const depositButton = document.querySelector('#depositModal .modal-footer .btn-primary');
     select.disabled = true;
     correctionButton.disabled = true;
+    attachButton.disabled = true;
     lockButton.disabled = true;
     depositButton.disabled = true;
     try { await refresh(select.value); }
     catch (error) { account = null; card = null; tell(error.message); }
-    finally { select.disabled = false; correctionButton.disabled = false; lockButton.disabled = false; depositButton.disabled = false; }
+    finally { select.disabled = false; correctionButton.disabled = false; attachButton.disabled = false; lockButton.disabled = false; depositButton.disabled = false; }
   });
   window.registerUser = async () => {
     const button = document.querySelector('#newCardModal .modal-footer .btn-primary');

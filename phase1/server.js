@@ -151,6 +151,11 @@ function createApp({ store, standalone = true }) {
     res.status(result.duplicate ? 200 : 201).json(result);
   }));
 
+  app.post('/api/demo/attach-card', requireAuth, requireRole('admin', 'staff'), handle(async (req, res) => {
+    const result = store.attachDemoCard({ accountId: req.body.accountId, uid: req.body.uid, idempotencyKey: req.body.idempotencyKey, actorUserId: req.user.id });
+    res.status(result.duplicate ? 200 : 201).json(result);
+  }));
+
   app.post('/api/cards', requireAuth, requireRole('admin', 'staff'), handle(async (req, res) => {
     res.status(201).json({ ok: true, card: publicCard(store.createCard({ uid: req.body.uid, accountId: req.body.accountId, actorUserId: req.user.id })) });
   }));

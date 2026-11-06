@@ -294,3 +294,36 @@ test('admin can block a demo card without duplicate audit; blocked card cannot b
     assert.equal((await post('/phase1/api/demo/payment', { cardUid: 'DEMO-0001', idempotencyKey: 'card-unlock-payment-001' }, admin)).data.approved, true);
   } finally { await running.close(); }
 });
+
+test('second demo card shares account balance and idempotent link survives restart', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencredit-link-'));
+  const databasePath = path.join(dir, 'demo.sqlite');
+  let running = startServer({ host: '127.0.0.1', port: 0, databasePath });
+  await new Promise(resolve => running.server.once('listening', resolve));
+  let base = `http://127.0.0.1:${running.server.address().port}`;
+  const post = (url, body, cookie) => jsonRequest(base, url, { method: 'POST', body: JSON.stringify(body) }, cookie);
+  try {
+    const admin = (await post('/phase1/api/setup', { username: 'admin', password: 'correct horse battery staple' })).cookie;
+    const link = { accountId: 'demo-account', uid: '00112233445566', idempotencyKey: 'attach-card-test-001' };
+    assert.equal((await post('/phase1/api/demo/attach-card', link)).response.status, 401);
+    const created = await post('/phase1/api/demo/attach-card', link, admin);
+    assert.equal(created.response.status, 201);
+    assert.equal(created.data.card.uid, link.uid);
+    assert.equal((await post('/phase1/api/demo/attach-card', link, admin)).data.duplicate, true);
+    assert.equal((await post('/phase1/api/demo/attach-card', { ...link, accountId: 'other-account' }, admin)).response.status, 409);
+    assert.equal((await post('/phase1/api/demo/attach-card', { ...link, idempotencyKey: 'attach-card-test-002' }, admin)).response.status, 409);
+    await post('/phase1/api/topups', { accountId: 'demo-account', cardUid: 'DEMO-0001', amountTl: '200', idempotencyKey: 'attach-topup-001' }, admin);
+    await post('/phase1/api/demo/simulator/card', { action: 'approach', cardUid: link.uid }, admin);
+    const payment = await post('/phase1/api/demo/payment', { cardUid: link.uid, idempotencyKey: 'attach-payment-001' }, admin);
+    assert.equal(payment.data.balanceAfterCents, 17500);
+    assert.equal(running.store.getCard('DEMO-0001').tl_balance_cents, 17500);
+    assert.equal(running.store.getCard(link.uid).tl_balance_cents, 17500);
+    await running.close();
+    running = startServer({ host: '127.0.0.1', port: 0, databasePath });
+    await new Promise(resolve => running.server.once('listening', resolve));
+    base = `http://127.0.0.1:${running.server.address().port}`;
+    assert.equal((await post('/phase1/api/demo/attach-card', link, admin)).data.duplicate, true);
+    assert.equal(running.store.listCards().filter(card => card.account_id === 'demo-account').length, 2);
+    assert.equal(running.store.getCard(link.uid).tl_balance_cents, 17500);
+  } finally { await running.close(); }
+});

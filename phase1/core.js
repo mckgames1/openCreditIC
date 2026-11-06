@@ -263,6 +263,20 @@ function createStore(databasePath, options = {}) {
     });
   }
 
+  function attachDemoCard({ accountId, uid, idempotencyKey, actorUserId }) {
+    const payload = { accountId, uid: normalizeUid(uid), actorUserId };
+    return withImmediateTransaction(() => {
+      const key = ensureIdempotency(idempotencyKey, 'demo_attach_card', payload);
+      if (key.duplicate) return { ...key.response, duplicate: true };
+      const account = getAccount(accountId);
+      if (account.locked) throw new DomainError('account_locked', 'Hesap kilitli.', 403);
+      const card = createCard({ uid: payload.uid, accountId, actorUserId });
+      const response = { ok: true, card };
+      saveIdempotency(key.key, 'demo_attach_card', key.hash, response);
+      return response;
+    });
+  }
+
   function setCardLock(uid, locked, actorUserId) {
     return withImmediateTransaction(() => {
       const card = getCard(uid);
@@ -532,7 +546,7 @@ function createStore(databasePath, options = {}) {
 
   return {
     dbPath: resolvedPath, close, getConfig, setConfig, createUser, authenticate, sessionUser, revokeSession,
-    createAccount, createDemoAccountCard, getAccount, listAccounts, createCard, getCard, setCardLock, listCards,
+    createAccount, createDemoAccountCard, attachDemoCard, getAccount, listAccounts, createCard, getCard, setCardLock, listCards,
     createMachine, getMachine, updateMachine, listMachines, topUp, correctBalance, pay, getPulseCommand, simulatePulse,
     retryPulse, reviewPulse, listPulseReviews, getIdempotency, listLedger, listPulses, summary, getUserCount: () => one('SELECT COUNT(*) AS count FROM users').count,
     getUsers: () => many('SELECT id, username, role, locked, created_at FROM users ORDER BY created_at'),

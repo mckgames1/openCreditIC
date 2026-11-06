@@ -219,12 +219,25 @@ function createStore(databasePath, options = {}) {
   function sessionUser(token) {
     if (!token) return null;
     const row = one(`SELECT u.* FROM sessions s JOIN users u ON u.id = s.user_id
-                    WHERE s.token = $token AND s.expires_at > $now`, { $token: token, $now: isoNow() });
+                    WHERE s.token = $token AND s.expires_at > $now AND u.locked = 0`, { $token: token, $now: isoNow() });
     return row ? publicUser(row) : null;
   }
 
   function revokeSession(token) {
     if (token) run('DELETE FROM sessions WHERE token = $token', { $token: token });
+  }
+
+  function setStaffLocked(userId, locked, actorUserId) {
+    return withImmediateTransaction(() => {
+      const user = one('SELECT * FROM users WHERE id = $id', { $id: userId });
+      if (!user) throw new DomainError('user_not_found', 'Personel bulunamadı.', 404);
+      if (user.role !== 'staff') throw new DomainError('staff_only', 'Yalnız demo personel hesapları değiştirilebilir.', 400);
+      if (Boolean(user.locked) === locked) return publicUser(user);
+      run('UPDATE users SET locked = $locked WHERE id = $id', { $locked: locked ? 1 : 0, $id: user.id });
+      if (locked) run('UPDATE sessions SET expires_at = $now WHERE user_id = $id AND expires_at > $now', { $id: user.id, $now: isoNow() });
+      audit(locked ? 'staff.disabled' : 'staff.enabled', actorUserId, { userId: user.id });
+      return publicUser(one('SELECT * FROM users WHERE id = $id', { $id: user.id }));
+    });
   }
 
   function createAccount({ name, actorUserId = null }) {
@@ -594,7 +607,7 @@ function createStore(databasePath, options = {}) {
   function close() { db.close(); }
 
   return {
-    dbPath: resolvedPath, close, getConfig, setConfig, createUser, authenticate, sessionUser, revokeSession,
+    dbPath: resolvedPath, close, getConfig, setConfig, createUser, authenticate, sessionUser, revokeSession, setStaffLocked,
     createAccount, createDemoAccountCard, attachDemoCard, getAccount, listAccounts, createCard, getCard, setCardLock, listCards,
     createMachine, getMachine, updateMachine, setMachineTiming, listMachines, topUp, correctBalance, pay, getPulseCommand, simulatePulse,
     retryPulse, reviewPulse, listPulseReviews, getIdempotency, listLedger, listPulses, summary, getUserCount: () => one('SELECT COUNT(*) AS count FROM users').count,

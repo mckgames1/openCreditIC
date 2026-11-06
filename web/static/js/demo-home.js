@@ -50,6 +50,29 @@
     }
     document.getElementById('demoAdmin').hidden = !isAdmin;
     if (isAdmin) {
+      const staffList = document.getElementById('demoStaffList');
+      staffList.replaceChildren();
+      for (const user of data.staff) {
+        const row = document.createElement('li');
+        row.className = 'mb-2';
+        const label = document.createElement('span');
+        label.textContent = `${user.username} — ${user.locked ? 'Erişimi durduruldu' : 'Aktif'} `;
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'btn btn-sm btn-outline-secondary';
+        button.textContent = user.locked ? 'Erişimi aç' : 'Erişimi durdur';
+        button.addEventListener('click', async () => {
+          button.disabled = true;
+          try {
+            await api('admin/staff/' + encodeURIComponent(user.id) + '/lock', { locked: !user.locked });
+            await refresh();
+            tell(`Personel hesabı ${user.locked ? 'açıldı' : 'durduruldu'}: ${user.username}.`);
+          } catch (error) { tell(error.message + ' Durumu yenileyip kontrol edin.'); }
+          finally { button.disabled = false; }
+        });
+        row.append(label, button);
+        staffList.append(row);
+      }
       document.getElementById('demoCardStatus').textContent = `${card.uid}: ${card.locked ? 'Engelli' : 'Aktif'}`;
       document.getElementById('demoCardLock').textContent = card.locked ? 'Kart engelini kaldır' : 'Kartı engelle';
       const tl = value => (Number(value) / 100).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' TL';
@@ -224,6 +247,7 @@
         role: 'staff'
       });
       form.reset();
+      await refresh();
       tell(`Demo personel hesabı oluşturuldu: ${result.user.username}.`);
     } catch (error) { tell(error.message); }
     finally { button.disabled = false; }

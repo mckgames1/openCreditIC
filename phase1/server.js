@@ -131,7 +131,8 @@ function createApp({ store, standalone = true }) {
       simulator: { ...simulator, present: Boolean(simulator.present), payment_latched: Boolean(simulator.payment_latched) },
       ledger: store.listLedger({ actorUserId: req.user.role === 'staff' ? req.user.id : null, limit: 25 }),
       pulses: req.user.role === 'admin' ? store.listPulses(25) : [],
-      reviews: req.user.role === 'admin' ? store.listPulseReviews() : []
+      reviews: req.user.role === 'admin' ? store.listPulseReviews() : [],
+      staff: req.user.role === 'admin' ? store.getUsers().filter(user => user.role === 'staff') : []
     };
     res.json(state);
   }));
@@ -140,6 +141,11 @@ function createApp({ store, standalone = true }) {
     const user = store.createUser({ username: req.body.username, password: req.body.password, role: req.body.role || 'staff' });
     store.audit('user.created', req.user.id, { userId: user.id, role: user.role });
     res.status(201).json({ ok: true, user });
+  }));
+
+  app.post('/api/admin/staff/:id/lock', requireAuth, requireRole('admin'), handle(async (req, res) => {
+    if (typeof req.body.locked !== 'boolean') throw new DomainError('invalid_lock_state', 'Hesap durumu true veya false olmalıdır.');
+    res.json({ ok: true, user: store.setStaffLocked(req.params.id, req.body.locked, req.user.id) });
   }));
 
   app.post('/api/accounts', requireAuth, requireRole('admin', 'staff'), handle(async (req, res) => {

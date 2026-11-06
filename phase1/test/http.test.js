@@ -384,3 +384,43 @@ test('admin timing settings distinguish short removal and payment cooldown', asy
     assert.equal(running.store.getDemoState('DEVICE-B').payment_latched, 1);
   } finally { await running.close(); }
 });
+
+test('admin can suspend and restore staff without reviving old sessions', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencredit-staff-access-'));
+  const databasePath = path.join(dir, 'demo.sqlite');
+  let running = startServer({ host: '127.0.0.1', port: 0, databasePath });
+  await new Promise(resolve => running.server.once('listening', resolve));
+  let base = `http://127.0.0.1:${running.server.address().port}`;
+  const post = (url, body, cookie) => jsonRequest(base, url, { method: 'POST', body: JSON.stringify(body) }, cookie);
+  try {
+    const setup = await post('/phase1/api/setup', { username: 'admin', password: 'correct horse battery staple' });
+    const admin = setup.cookie;
+    const created = await post('/phase1/api/admin/users', { username: 'staff', password: 'staff password 1', role: 'staff' }, admin);
+    const staffId = created.data.user.id;
+    const staff = (await post('/phase1/api/auth/login', { username: 'staff', password: 'staff password 1' })).cookie;
+    await post('/phase1/api/topups', { accountId: 'demo-account', cardUid: 'DEMO-0001', amountTl: '10', idempotencyKey: 'staff-access-topup-001' }, staff);
+    const url = `/phase1/api/admin/staff/${staffId}/lock`;
+    assert.equal((await post(url, { locked: true }, staff)).response.status, 403);
+    assert.equal((await post(url, { locked: 'false' }, admin)).response.status, 400);
+    assert.equal((await post(`/phase1/api/admin/staff/${setup.data.user.id}/lock`, { locked: true }, admin)).response.status, 400);
+    assert.equal((await post(url, { locked: true }, admin)).data.user.locked, true);
+    assert.equal((await jsonRequest(base, '/phase1/api/state', {}, staff)).response.status, 401);
+    assert.equal((await post('/phase1/api/auth/login', { username: 'staff', password: 'staff password 1' })).response.status, 401);
+    await post(url, { locked: true }, admin);
+    await running.close();
+    running = startServer({ host: '127.0.0.1', port: 0, databasePath });
+    await new Promise(resolve => running.server.once('listening', resolve));
+    base = `http://127.0.0.1:${running.server.address().port}`;
+    const state = (await jsonRequest(base, '/phase1/api/state', {}, admin)).data;
+    assert.equal(state.staff.find(user => user.id === staffId).locked, 1);
+    assert.equal((await post(url, { locked: false }, admin)).data.user.locked, false);
+    assert.equal((await jsonRequest(base, '/phase1/api/state', {}, staff)).response.status, 401);
+    assert.equal((await post('/phase1/api/auth/login', { username: 'staff', password: 'staff password 1' })).response.status, 200);
+    assert.equal(running.store.getAccount('demo-account').tl_balance_cents, 1000);
+    assert.equal(running.store.listLedger().length, 1);
+    const { DatabaseSync } = require('node:sqlite');
+    const db = new DatabaseSync(databasePath, { readOnly: true });
+    assert.equal(db.prepare("SELECT COUNT(*) AS n FROM audit_log WHERE event_type = 'staff.disabled'").get().n, 1);
+    db.close();
+  } finally { await running.close(); }
+});

@@ -565,3 +565,54 @@ test('period report is admin-only and validates period', async () => {
     }
   } finally { await running.close(); }
 });
+
+test('CSV exports selected demo period safely in Turkish Excel format for admin only', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencredit-csv-'));
+  const running = startServer({ host: '127.0.0.1', port: 0, databasePath: path.join(dir, 'demo.sqlite') });
+  await new Promise(resolve => running.server.once('listening', resolve));
+  const base = `http://127.0.0.1:${running.server.address().port}`;
+  const post = (url, body, cookie) => jsonRequest(base, url, { method: 'POST', body: JSON.stringify(body) }, cookie);
+  try {
+    const admin = (await post('/phase1/api/setup', { username: 'admin', password: 'correct horse battery staple' })).cookie;
+    await post('/phase1/api/admin/users', { username: 'staff', password: 'staff password 1', role: 'staff' }, admin);
+    const staff = (await post('/phase1/api/auth/login', { username: 'staff', password: 'staff password 1' })).cookie;
+    const store = running.store;
+    store.createMachine({ id: 'TEST-CSV', name: ' =HYPERLINK("test";"çalıştır")', priceCents: 5000 });
+    store.topUp({ accountId: 'demo-account', amountCents: 20000, idempotencyKey: 'csv-test-topup-001' });
+    const payment = store.pay({ machineId: 'TEST-CSV', cardUid: 'DEMO-0001', idempotencyKey: 'csv-test-payment-001' });
+    store.simulatePulse(payment.pulseCommandId, 'response_lost');
+    store.correctBalance({ accountId: 'demo-account', amountCents: -1000, reason: 'Demo test düzeltmesi', idempotencyKey: 'csv-test-correction-001', actorUserId: null });
+    const url = `${base}/phase1/api/report/period.csv?period=day`;
+    assert.equal((await fetch(url)).status, 401);
+    assert.equal((await fetch(url, { headers: { Cookie: staff } })).status, 403);
+    assert.equal((await fetch(`${url}&date=2026-02-30`, { headers: { Cookie: admin } })).status, 400);
+    const response = await fetch(url, { headers: { Cookie: admin } });
+    assert.equal(response.status, 200);
+    assert.match(response.headers.get('content-type'), /text\/csv.*utf-8/);
+    assert.match(response.headers.get('content-disposition'), /attachment/);
+    assert.equal(response.headers.get('cache-control'), 'no-store');
+    const bytes = Buffer.from(await response.arrayBuffer());
+    assert.deepEqual([...bytes.subarray(0, 3)], [0xef, 0xbb, 0xbf]);
+    const csv = bytes.toString('utf8');
+    assert.match(csv, /"Tutar \(TL\)"\r\n/);
+    assert.match(csv, /"Yükleme";"";200,00/);
+    assert.match(csv, /"Oyun harcaması";"";50,00/);
+    assert.match(csv, /"Net bakiye düzeltmesi";"";-10,00/);
+    assert.match(csv, /"Şu anki toplam bakiye; dönem sonu bakiyesi değildir";"";140,00/);
+    assert.match(csv, /"Belirsiz";"";50,00/);
+    assert.ok(csv.includes('"\'=HYPERLINK(""test"";""çalıştır"")";"TEST-CSV";50,00'));
+    const old = await fetch(`${url}&date=2020-01-01`, { headers: { Cookie: admin } });
+    const oldCsv = await old.text();
+    assert.ok(oldCsv.includes('2020-01-01'));
+    assert.match(oldCsv, /"Oyun harcaması";"";0,00/);
+    assert.ok(!oldCsv.includes('TEST-CSV'));
+  } finally { await running.close(); }
+});
+
+test('CSV neutralizes formula prefixes and quotes untrusted device names', () => {
+  const { reportCsv } = require('../server');
+  const names = ['=1+1', '+1', '-1', '@SUM(1)', ' \t=1', '\ttext', 'safe;"quoted"\nline'];
+  const csv = reportCsv({ selectedDate: '2026-01-01', period: 'day', start: '2026-01-01', end: '2026-01-02', totals: { topups_cents: 0, game_charges_cents: 0, corrections_cents: 0 }, balance_cents: 0, commandStatus: { ambiguous: 0, pending: 0, failed: 0, missing: 0, succeeded: 0 }, machines: names.map((name, i) => ({ name, machine_id: `M${i}`, cents: 0 })) }, new Date('2026-01-01T00:00:00Z'));
+  for (const name of names.slice(0, 6)) assert.ok(csv.includes('"\'' + name + '"'));
+  assert.ok(csv.includes('"safe;""quoted""\nline"'));
+});

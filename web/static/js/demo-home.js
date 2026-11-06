@@ -151,6 +151,24 @@
   }
   document.getElementById('demoReportPeriod').addEventListener('change', refreshReport);
   document.getElementById('demoReportDate').addEventListener('change', refreshReport);
+  document.getElementById('demoReportCsv').addEventListener('click', async event => {
+    const button = event.currentTarget;
+    button.disabled = true;
+    try {
+      const date = document.getElementById('demoReportDate').value;
+      const query = new URLSearchParams({ period: document.getElementById('demoReportPeriod').value });
+      if (date) query.set('date', date);
+      const response = await fetch('/phase1/api/report/period.csv?' + query);
+      if (!response.ok) { const data = await response.json(); throw new Error(data.message || 'CSV indirilemedi.'); }
+      const url = URL.createObjectURL(await response.blob());
+      const link = document.createElement('a');
+      link.href = url; link.download = 'opencredit-demo-rapor.csv';
+      document.body.append(link); link.click(); link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      tell('Seçili demo dönem raporu indirildi.');
+    } catch (error) { tell(error.message); }
+    finally { button.disabled = false; }
+  });
   function showMachine() {
     const machine = machines.find(item => item.id === document.getElementById('demoMachine').value);
     if (!machine) return;

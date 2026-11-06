@@ -42,6 +42,39 @@ function publicCard(card) {
   } : null;
 }
 
+// Semicolon CSV with UTF-8 BOM for Turkish Excel. Only trusted integer amounts
+// are emitted as numbers; every text cell is quoted and formula-like text neutralized.
+function reportCsv(report, generatedAt) {
+  const textCell = value => {
+    let text = String(value ?? '');
+    if (/^[\s\u0000-\u001f\u007f\ufeff]*[=+\-@]/u.test(text) || /^[\t\r\n]/u.test(text)) text = "'" + text;
+    return '"' + text.replace(/"/g, '""') + '"';
+  };
+  const money = cents => {
+    if (!Number.isSafeInteger(cents)) throw new Error('Invalid report amount');
+    const value = Math.abs(cents);
+    return `${cents < 0 ? '-' : ''}${Math.floor(value / 100)},${String(value % 100).padStart(2, '0')}`;
+  };
+  const rows = [];
+  const row = (section, label, device, amount) => rows.push([textCell(section), textCell(label), textCell(device), amount === undefined ? '' : money(amount)].join(';'));
+  rows.push([textCell('Bölüm'), textCell('İşlem türü / açıklama'), textCell('Cihaz / değer'), textCell('Tutar (TL)')].join(';'));
+  row('Bilgi', 'Rapor', 'Yalnız demo; gerçek gelir veya fiziksel kredi değildir');
+  row('Bilgi', 'Oluşturulma zamanı (UTC)', generatedAt.toISOString());
+  row('Dönem', 'Seçilen tarih (İstanbul)', report.selectedDate);
+  row('Dönem', 'Dönem türü', { day: 'Günlük', week: 'Haftalık', month: 'Aylık', year: 'Yıllık' }[report.period]);
+  row('Dönem', 'Başlangıç (İstanbul, dahil)', report.start);
+  row('Dönem', 'Bitiş (İstanbul, hariç)', report.end);
+  row('İşlem özeti', 'Yükleme', '', report.totals.topups_cents);
+  row('İşlem özeti', 'Oyun harcaması', '', report.totals.game_charges_cents);
+  row('İşlem özeti', 'Net bakiye düzeltmesi', '', report.totals.corrections_cents);
+  row('Anlık durum', 'Şu anki toplam bakiye; dönem sonu bakiyesi değildir', '', report.balance_cents);
+  for (const [status, label] of Object.entries({ ambiguous: 'Belirsiz', pending: 'Bekleyen', failed: 'Başarısız', missing: 'Komut kaydı yok', succeeded: 'Sanal olarak başarılı' })) {
+    row('Oyun harcaması komut durumu (anlık)', label, '', report.commandStatus[status]);
+  }
+  for (const machine of report.machines) row('Cihaz bazlı oyun harcaması', machine.name, machine.machine_id || 'Bilinmiyor', machine.cents);
+  return '\ufeff' + rows.join('\r\n') + '\r\n';
+}
+
 function currentUser(req, store) {
   const cookies = parseCookies(req.headers.cookie);
   const bearer = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim();
@@ -285,6 +318,13 @@ function createApp({ store, standalone = true }) {
     res.json({ ok: true, report: store.periodReport(req.query.period || 'day', new Date(), req.query.date) });
   }));
 
+  app.get('/api/report/period.csv', requireAuth, requireRole('admin'), handle(async (req, res) => {
+    const now = new Date();
+    const report = store.periodReport(req.query.period || 'day', now, req.query.date);
+    res.set({ 'Cache-Control': 'no-store', 'Content-Disposition': 'attachment; filename="opencredit-demo-rapor.csv"', 'X-Content-Type-Options': 'nosniff' });
+    res.type('text/csv; charset=utf-8').send(reportCsv(report, now));
+  }));
+
   app.get(mountPath, (_req, res) => res.render('phase1'));
   if (standalone) app.get('/', (_req, res) => res.redirect('/phase1'));
   return app;
@@ -302,4 +342,4 @@ function startServer({ host = process.env.PHASE1_HOST || DEFAULT_HOST, port = Nu
 }
 
 // startServer is retained only as a test harness; production entry is card-server.js.
-module.exports = { createApp, startServer };
+module.exports = { createApp, startServer, reportCsv };

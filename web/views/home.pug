@@ -132,6 +132,8 @@ body.bg-dark.text-white
                     option(value='year') Yıllık
                 label.mt-2(for='demoReportDate') Tarih (geçmiş dönem seçimi)
                 input#demoReportDate.form-control(type='date' min='1900-01-01' max='9998-12-31')
+                button#demoReportCsv.btn.btn-outline-primary.mt-2(type='button') Seçili demo raporunu CSV indir
+                p.small CSV dönem özetidir; gerçek gelir veya dönem sonu bakiyesi değildir.
                 p#demoReportTotals.mt-2(role='status')
                 p#demoReportCommands.small
                 p.small Komut durumları rapor açıldığı andaki sanal durumlardır; sonuç belirsiz veya başarısız olabilir ve fiziksel kredi kanıtı değildir. Saat değişiminde tekrar eden saatler aynı çubukta toplanır; atlanan saat sıfır gösterilir.

@@ -29,6 +29,7 @@ async function loadSetup() {
 }
 
 function fillSelect(select, items, getValue, getLabel) {
+  const previous = select.value;
   select.innerHTML = '';
   for (const item of items) {
     const option = document.createElement('option');
@@ -36,6 +37,7 @@ function fillSelect(select, items, getValue, getLabel) {
     option.textContent = getLabel(item);
     select.append(option);
   }
+  if (items.some(item => String(getValue(item)) === previous)) select.value = previous;
 }
 
 function render(data) {

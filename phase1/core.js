@@ -250,6 +250,19 @@ function createStore(databasePath) {
     return card;
   }
 
+  function createDemoAccountCard({ name, uid, idempotencyKey, actorUserId }) {
+    const payload = { name: String(name || '').trim(), uid: normalizeUid(uid) };
+    return withImmediateTransaction(() => {
+      const key = ensureIdempotency(idempotencyKey, 'demo_registration', payload);
+      if (key.duplicate) return { ...key.response, duplicate: true };
+      const account = createAccount({ name: payload.name, actorUserId });
+      const card = createCard({ uid: payload.uid, accountId: account.id, actorUserId });
+      const response = { ok: true, account, card };
+      saveIdempotency(key.key, 'demo_registration', key.hash, response);
+      return response;
+    });
+  }
+
   function setCardLock(uid, locked, actorUserId) {
     const card = getCard(uid);
     run('UPDATE cards SET locked = $locked, updated_at = $updatedAt WHERE uid = $uid', { $uid: card.uid, $locked: locked ? 1 : 0, $updatedAt: isoNow() });
@@ -450,7 +463,7 @@ function createStore(databasePath) {
 
   return {
     dbPath: resolvedPath, close, getConfig, setConfig, createUser, authenticate, sessionUser, revokeSession,
-    createAccount, getAccount, listAccounts, createCard, getCard, setCardLock, listCards,
+    createAccount, createDemoAccountCard, getAccount, listAccounts, createCard, getCard, setCardLock, listCards,
     createMachine, getMachine, updateMachine, listMachines, topUp, pay, getPulseCommand, simulatePulse,
     retryPulse, getIdempotency, listLedger, listPulses, summary, getUserCount: () => one('SELECT COUNT(*) AS count FROM users').count,
     getUsers: () => many('SELECT id, username, role, locked, created_at FROM users ORDER BY created_at'),

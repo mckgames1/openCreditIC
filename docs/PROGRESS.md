@@ -8,11 +8,11 @@ Temel commit: `c96727c2d76d54179b67c1fcc34fc4cb1a8a5466`
 
 Faz 1 tamamlanmadı; yerel demo geliştirme aşamasındadır. `npm run phase1` mevcut sunucu girişini demo modunda başlatır, Pug görünümü sunar ve legacy route'ları kaydetmez. Normal `npm start` legacy modudur. Demo veritabanı `phase1-data/demo.sqlite` altında ayrıdır.
 
-`/phase1/home`, mevcut `home.pug` üzerindeki yükleme penceresini kullanır: oturum açıldıktan sonra demo kartının bakiyesi gösterilir ve yükleme SQLite API'sine gönderilir. Diğer eski ana sayfa işlemleri demo modunda uygulanmamıştır; mevcut simülatör ekranı ayrıca korunmaktadır. Tarayıcıda görsel etkileşim henüz test edilmedi.
+`/phase1/home`, mevcut `home.pug` üzerindeki kayıt ve yükleme pencerelerini kullanır: demo hesap ve sanal UID birlikte oluşturulur, kart seçilerek bakiye görüntülenir ve yükleme SQLite API'sine gönderilir. Simülatör ayrı ekranda seçilen kartla çalışır. Diğer eski ana sayfa işlemleri demo modunda uygulanmamıştır. Tarayıcıda görsel etkileşim henüz test edilmedi.
 
 ## Test kanıtı
 
-`npm test` sonucu: **8 test geçti, 0 başarısız**.
+`npm test` sonucu: **9 test geçti, 0 başarısız**. Yeni hesap/kart, tekrar kayıt ve yükleme, ödeme ve tutulan kart HTTP akışı da kapsandı.
 
 Kapsanan akışlar: 200 TL yükleme, 25 TL ödeme, tekrar istek, art arda iki ödeme denemesi, kartı tutarken tekrar yaklaştırma, yetersiz bakiye, demo modunda eski yolların reddi, legacy modunda bir route'un varlığı, fiyat snapshot'ı, yeniden açılışta kalıcılık ve personel API yetki reddi. İki bağımsız cihazın gerçek eşzamanlı yarışı test edilmedi.
 

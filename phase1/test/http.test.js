@@ -70,3 +70,34 @@ test('insufficient balance is reported as a rejected payment', async () => {
     assert.equal(running.store.summary().pulseCount, 0);
   } finally { await running.close(); }
 });
+
+test('new demo account and card flow remains idempotent through topup and play', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencreditic-new-card-'));
+  const running = startServer({ host: '127.0.0.1', port: 0, databasePath: path.join(dir, 'demo.sqlite') });
+  await new Promise(resolve => running.server.once('listening', resolve));
+  const base = `http://127.0.0.1:${running.server.address().port}`;
+  try {
+    const setup = await jsonRequest(base, '/phase1/api/setup', { method: 'POST', body: JSON.stringify({ username: 'admin', password: 'correct horse battery staple' }) });
+    const cookie = setup.cookie;
+    const register = { name: 'Deneme', uid: '00112233', idempotencyKey: 'registration-test-001' };
+    const first = await jsonRequest(base, '/phase1/api/demo/register', { method: 'POST', body: JSON.stringify(register) }, cookie);
+    assert.equal(first.response.status, 201);
+    const repeat = await jsonRequest(base, '/phase1/api/demo/register', { method: 'POST', body: JSON.stringify(register) }, cookie);
+    assert.equal(repeat.data.account.id, first.data.account.id);
+    assert.equal(repeat.data.duplicate, true);
+    const topup = { accountId: first.data.account.id, cardUid: register.uid, amountTl: '25.00', idempotencyKey: 'new-card-topup-001' };
+    await jsonRequest(base, '/phase1/api/topups', { method: 'POST', body: JSON.stringify(topup) }, cookie);
+    const dupTopup = await jsonRequest(base, '/phase1/api/topups', { method: 'POST', body: JSON.stringify(topup) }, cookie);
+    assert.equal(dupTopup.data.duplicate, true);
+    await jsonRequest(base, '/phase1/api/demo/simulator/card', { method: 'POST', body: JSON.stringify({ action: 'approach', cardUid: register.uid }) }, cookie);
+    const payment = { cardUid: register.uid, machineId: 'DEMO-MACHINE', idempotencyKey: 'new-card-payment-001' };
+    const paid = await jsonRequest(base, '/phase1/api/demo/payment', { method: 'POST', body: JSON.stringify(payment) }, cookie);
+    assert.equal(paid.data.balanceAfterCents, 0);
+    const duplicate = await jsonRequest(base, '/phase1/api/demo/payment', { method: 'POST', body: JSON.stringify(payment) }, cookie);
+    assert.equal(duplicate.data.duplicate, true);
+    const held = await jsonRequest(base, '/phase1/api/demo/payment', { method: 'POST', body: JSON.stringify({ ...payment, idempotencyKey: 'new-card-payment-002' }) }, cookie);
+    assert.equal(held.response.status, 409);
+    assert.equal(running.store.summary().pulseCount, 1);
+    assert.equal(running.store.getAccount(first.data.account.id).tl_balance_cents, 0);
+  } finally { await running.close(); }
+});

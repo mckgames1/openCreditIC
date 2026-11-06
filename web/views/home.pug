@@ -41,7 +41,7 @@ head
     script(src='/static/js/sideloader.js')
     if typeof demoMode !== 'undefined' && demoMode
         style.
-            .demo-hidden, #newCardModal, #findUserModal, #showUserModel, #showFreePlayModel, #headerDepositFreeplay, #collapseDepositFreeplay, #depositAccordion { display: none !important; }
+            .demo-hidden, #findUserModal, #showUserModel, #showFreePlayModel, #headerDepositFreeplay, #collapseDepositFreeplay, #depositAccordion, #newCardModal #initialBalance, #newCardModal label[for='initialBalance'], #newCardModal #userID, #newCardModal label[for='userID'], #newCardModal #userContact, #newCardModal label[for='userContact'], #newCardModal #userNotes, #newCardModal label[for='cardName'] ~ input:not(#cardNum) { display: none !important; }
         script(src='/static/js/demo-home.js' defer)
 body.bg-dark.text-white
     div.background
@@ -58,6 +58,9 @@ body.bg-dark.text-white
                     input#demoPassword.form-control(type='password' required minlength='10' autocomplete='current-password')
                     button#demoLoginButton.btn.btn-primary.mt-2(type='submit') Giriş yap / ilk yönetici oluştur
                 p#demoAccount.mt-3.mb-0 Giriş bekleniyor.
+                label(for='demoCardChoice') Sanal kart seçimi
+                select#demoCardChoice.form-control
+                a.btn.btn-outline-primary.mt-2(href='/phase1/') Makine simülatörüne git
                 p#demoNotice(role='status')
         div.btn-group-vertical.mt-5.col-lg-7.rounded.center-menu
             div.w-100
@@ -66,7 +69,7 @@ body.bg-dark.text-white
                         each machine in pos_terminals
                             option(value=machine[0]) #{(machine[1].name) ? machine[1].name : machine[0]}#{(machine[1].location) ? ' (' + machine[1].location + ')' : ''}
             div.btn-group.btn-group-lg.flex-column.flex-sm-row.bg-success.rounded
-                a.btn(class=(typeof demoMode !== 'undefined' && demoMode ? 'demo-hidden' : '') href='#', data-toggle='modal', data-target='#newCardModal').py-4.col.text-white
+                a.btn(href='#', data-toggle='modal', data-target='#newCardModal').py-4.col.text-white
                     div.d-flex.justify-content-center
                         div.d-flex.align-items-center.justify-content-center.pr-2
                             i.fas.fa-credit-card
@@ -146,7 +149,7 @@ body.bg-dark.text-white
         div.modal-dialog.text-dark
             div.modal-content
                 div.modal-header.bg-success.text-white.py-2
-                    h5.modal-title Register Customer
+                    h5.modal-title #{typeof demoMode !== 'undefined' && demoMode ? 'Demo hesap ve sanal kart oluştur' : 'Register Customer'}
                     button.close(type='button', data-dismiss='modal')
                         span &times;
                 div.modal-body
@@ -188,7 +191,7 @@ body.bg-dark.text-white
                                 .card-body
                                     .form-group
                                         label(for='cardName') Serial Number:
-                                        input#cardNum.form-control(type='text', name='cardName', placeholder="Leave blank to Scan")
+                                        input#cardNum.form-control(type='text', name='cardName', placeholder=(typeof demoMode !== 'undefined' && demoMode ? 'Sanal kart UID (ör. 00112233)' : 'Leave blank to Scan'))
                                     .form-group
                                         label(for='cardName') Card Name:
                                         input#cardName.form-control(type='text', name='cardName', placeholder="Friendly name for card")

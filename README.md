@@ -84,7 +84,7 @@ npm run phase1
 
 Ardından `http://127.0.0.1:1787/phase1` adresini açın. İlk açılışta yönetici hesabı oluşturulur. Demo arayüzünde `DEMO / GERÇEK DONANIM DEĞİL` ibaresi bulunur; kart yaklaştırma, kartı tutma/çekme, 200 TL yükleme, 25 TL demo ödeme, tekrar istek ve belirsiz pulse sonucu simüle edilebilir.
 
-Mevcut ana sayfadaki demo kart ve yükleme penceresi için `http://127.0.0.1:1787/phase1/home` adresini açın. Giriş yapıp Deposit düğmesinden sanal hesaba yükleme yapabilirsiniz.
+Mevcut ana sayfadaki demo kayıt ve yükleme pencereleri için `http://127.0.0.1:1787/phase1/home` adresini açın. Giriş yapıp Register ile demo hesap ve sanal UID oluşturun; kartı seçip Deposit ile yükleme yapın. Simülatör bağlantısını açıp aynı kartı seçerek ödeme deneyebilirsiniz.
 
 `npm start` ayrı legacy modudur; mevcut JSON verisi ve eski route'lar kullanılır ve sunucu tüm ağ arayüzlerini dinler. Eski route'lar yeni demo güvenlik garantilerini taşımaz. `npm run phase1` yalnızca localhost üzerinde dinler ve legacy route'ları açmaz; gerçek para veya donanım için kullanmayın.
 

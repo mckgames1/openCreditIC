@@ -6,6 +6,8 @@
   let registerKey;
   let machines = [];
   let reportRequest = 0;
+  let detailRequest = 0;
+  let detailPage = 1;
   const notice = document.getElementById('demoNotice');
   const tell = message => { notice.textContent = message; };
   async function api(path, body, method = 'POST') {
@@ -36,7 +38,8 @@
     const isAdmin = data.user.role === 'admin';
     if (!isAdmin) {
       reportRequest++;
-      for (const id of ['demoResetIssueResult', 'demoReportTotals', 'demoReportCommands', 'demoReportChart', 'demoReportMachines', 'demoPulseRows']) document.getElementById(id).replaceChildren();
+      detailRequest++;
+      for (const id of ['demoResetIssueResult', 'demoReportTotals', 'demoReportCommands', 'demoReportChart', 'demoReportMachines', 'demoPulseRows', 'demoDetailRows', 'demoDetailStatus']) document.getElementById(id).replaceChildren();
     }
     document.getElementById('demoHistory').hidden = false;
     document.getElementById('demoHistoryScope').textContent = isAdmin ? 'Son 25 demo hareketi' : 'Son 25 kendi demo hareketiniz';
@@ -108,16 +111,67 @@
       const prior = machineSelect.value;
       machines = data.machines;
       machineSelect.replaceChildren();
+      const detailMachine = document.getElementById('demoDetailMachine');
+      const priorDetailMachine = detailMachine.value;
+      detailMachine.replaceChildren();
+      const allMachines = document.createElement('option'); allMachines.value = ''; allMachines.textContent = 'Tüm cihazlar'; detailMachine.append(allMachines);
       for (const machine of machines) {
         const option = document.createElement('option');
         option.value = machine.id;
         option.textContent = `${machine.name} (${machine.id})`;
         machineSelect.append(option);
+        const detailOption = document.createElement('option'); detailOption.value = machine.id; detailOption.textContent = `${machine.name} (${machine.id})`; detailMachine.append(detailOption);
       }
+      if (machines.some(machine => machine.id === priorDetailMachine)) detailMachine.value = priorDetailMachine;
       if (machines.some(machine => machine.id === prior)) machineSelect.value = prior;
       showMachine();
+      await refreshDetails();
     }
   }
+  function detailQuery() {
+    const query = new URLSearchParams();
+    for (const [name, id] of [['from', 'demoDetailFrom'], ['to', 'demoDetailTo'], ['machineId', 'demoDetailMachine'], ['type', 'demoDetailType']]) {
+      const value = document.getElementById(id).value; if (value) query.set(name, value);
+    }
+    return query;
+  }
+  async function refreshDetails() {
+    const request = ++detailRequest;
+    const query = detailQuery(); query.set('page', String(detailPage));
+    try {
+      const data = await api('admin/history/details?' + query);
+      if (request !== detailRequest) return;
+      const tbody = document.getElementById('demoDetailRows'); tbody.replaceChildren();
+      const types = { topup: 'Yükleme', game_charge: 'Oyun harcaması', correction: 'Düzeltme', refund: 'İade kaydı', bonus: 'Bonus kaydı', free_play: 'Ücretsiz oyun kaydı' };
+      const statuses = { pending: 'Bekliyor', succeeded: 'Sanal olarak başarılı', ambiguous: 'Belirsiz', failed: 'Sanal olarak başarısız' };
+      for (const entry of data.rows) {
+        const row = document.createElement('tr');
+        const device = entry.machine_id ? `${entry.machine_name || entry.machine_id} (${entry.machine_id}) / ${statuses[entry.command_status] || 'Komut kaydı yok'}` : '—';
+        for (const value of [entry.created_at, types[entry.entry_type] || entry.entry_type, (entry.amount_cents / 100).toFixed(2), (entry.balance_after_cents / 100).toFixed(2) + ' TL', device, entry.id]) {
+          const cell = document.createElement('td'); cell.textContent = value; row.append(cell);
+        }
+        tbody.append(row);
+      }
+      document.getElementById('demoDetailStatus').textContent = `Toplam ${data.total} hareket · Sayfa ${data.page} (25 hareket/sayfa).`;
+      document.getElementById('demoDetailPrevious').disabled = detailPage <= 1;
+      document.getElementById('demoDetailNext').disabled = detailPage * data.pageSize >= data.total;
+    } catch (error) {
+      if (request === detailRequest) { document.getElementById('demoDetailRows').replaceChildren(); document.getElementById('demoDetailStatus').textContent = error.message; }
+    }
+  }
+  document.getElementById('demoDetailForm').addEventListener('submit', event => { event.preventDefault(); detailPage = 1; refreshDetails(); });
+  document.getElementById('demoDetailPrevious').addEventListener('click', () => { if (detailPage > 1) { detailPage--; refreshDetails(); } });
+  document.getElementById('demoDetailNext').addEventListener('click', () => { detailPage++; refreshDetails(); });
+  document.getElementById('demoDetailCsv').addEventListener('click', async event => {
+    const button = event.currentTarget; button.disabled = true;
+    try {
+      const response = await fetch('/phase1/api/admin/history/details.csv?' + detailQuery());
+      if (!response.ok) { const data = await response.json(); throw new Error(data.message || 'CSV indirilemedi.'); }
+      const url = URL.createObjectURL(await response.blob()); const link = document.createElement('a');
+      link.href = url; link.download = 'opencredit-demo-hareketler.csv'; document.body.append(link); link.click(); link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000); tell('Ayrıntılı demo hareketleri indirildi.');
+    } catch (error) { tell(error.message); } finally { button.disabled = false; }
+  });
   document.getElementById('demoPulseRefresh').addEventListener('click', async event => {
     const button = event.currentTarget;
     button.disabled = true;

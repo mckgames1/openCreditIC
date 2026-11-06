@@ -645,3 +645,60 @@ test('admin sees persisted simulated command history and staff cannot obtain it'
     assert.deepEqual((await jsonRequest(base, '/phase1/api/state', {}, staff)).data.pulses, []);
   } finally { await running.close(); }
 });
+
+test('admin detailed history filters, paginates and exports safely without truncation', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencredit-details-'));
+  const running = startServer({ host: '127.0.0.1', port: 0, databasePath: path.join(dir, 'demo.sqlite') });
+  await new Promise(resolve => running.server.once('listening', resolve));
+  const base = `http://127.0.0.1:${running.server.address().port}`;
+  const post = (url, body, cookie) => jsonRequest(base, url, { method: 'POST', body: JSON.stringify(body) }, cookie);
+  try {
+    const admin = (await post('/phase1/api/setup', { username: 'admin', password: 'correct horse battery staple' })).cookie;
+    await post('/phase1/api/admin/users', { username: 'staff', password: 'staff password 1', role: 'staff' }, admin);
+    const staff = (await post('/phase1/api/auth/login', { username: 'staff', password: 'staff password 1' })).cookie;
+    const store = running.store;
+    store.createMachine({ id: 'DEVICE-B', name: '=1+1', priceCents: 2500 });
+    for (let i = 0; i < 27; i++) store.topUp({ accountId: 'demo-account', amountCents: 1000, idempotencyKey: `details-topup-${String(i).padStart(3, '0')}` });
+    store.pay({ machineId: 'DEVICE-B', cardUid: 'DEMO-0001', idempotencyKey: 'details-payment-001' });
+    store.correctBalance({ accountId: 'demo-account', amountCents: -100, reason: 'Test düzeltme gerekçesi', idempotencyKey: 'details-correction-001', actorUserId: null });
+    const { DatabaseSync } = require('node:sqlite');
+    const db = new DatabaseSync(store.dbPath);
+    db.prepare('UPDATE ledger_entries SET created_at = ?').run('2016-03-26T22:00:00.000Z');
+    db.prepare('UPDATE ledger_entries SET created_at = ? WHERE idempotency_key = ?').run('2016-03-26T21:59:59.000Z', 'details-topup-000:ledger');
+    const endpoint = '/phase1/api/admin/history/details';
+    assert.equal((await jsonRequest(base, endpoint)).response.status, 401);
+    assert.equal((await jsonRequest(base, endpoint, {}, staff)).response.status, 403);
+    assert.equal((await fetch(`${base}${endpoint}.csv`, { headers: { Cookie: staff } })).status, 403);
+    assert.equal((await jsonRequest(base, `${endpoint}?from=2026-02-30`, {}, admin)).response.status, 400);
+    assert.equal((await jsonRequest(base, `${endpoint}?from=2026-01-02&to=2026-01-01`, {}, admin)).response.status, 400);
+    assert.equal((await jsonRequest(base, `${endpoint}?type=unknown`, {}, admin)).response.status, 400);
+    assert.equal((await jsonRequest(base, `${endpoint}?page=0`, {}, admin)).response.status, 400);
+    const query = '?from=2016-03-27&to=2016-03-27';
+    const first = await jsonRequest(base, endpoint + query, {}, admin);
+    const second = await jsonRequest(base, endpoint + query + '&page=2', {}, admin);
+    assert.equal(first.data.total, 28);
+    assert.equal(first.data.rows.length, 25);
+    assert.equal(second.data.rows.length, 3);
+    assert.equal(new Set([...first.data.rows, ...second.data.rows].map(row => row.id)).size, 28);
+    const filtered = await jsonRequest(base, endpoint + query + '&machineId=DEVICE-B&type=game_charge', {}, admin);
+    assert.equal(filtered.data.total, 1);
+    assert.equal(filtered.data.rows[0].amount_cents, -2500);
+    assert.equal((await jsonRequest(base, endpoint + query + '&machineId=DEVICE-B&type=topup', {}, admin)).data.total, 0);
+    const csvResponse = await fetch(`${base}${endpoint}.csv${query}`, { headers: { Cookie: admin } });
+    assert.equal(csvResponse.status, 200);
+    const bytes = Buffer.from(await csvResponse.arrayBuffer());
+    assert.deepEqual([...bytes.subarray(0, 3)], [0xef, 0xbb, 0xbf]);
+    const csv = bytes.toString('utf8');
+    assert.ok(csv.includes('İşlem sonrası hesap bakiyesi (TL)'));
+    assert.ok(csv.includes('"\'=1+1"'));
+    assert.ok(csv.includes(';"game_charge";-25,00;'));
+    assert.equal(csv.trimEnd().split('\r\n').length, 29);
+    db.exec(`WITH RECURSIVE n(x) AS (VALUES(1) UNION ALL SELECT x+1 FROM n WHERE x < 5001)
+      INSERT INTO ledger_entries(id, account_id, entry_type, amount_cents, balance_after_cents, idempotency_key, created_at)
+      SELECT 'synthetic-' || x, 'demo-account', 'topup', 1, 1, 'synthetic-key-' || x, '2010-01-01T00:00:00.000Z' FROM n`);
+    db.close();
+    const tooMany = await fetch(`${base}${endpoint}.csv`, { headers: { Cookie: admin } });
+    assert.equal(tooMany.status, 400);
+    assert.equal((await tooMany.json()).error, 'export_limit');
+  } finally { await running.close(); }
+});

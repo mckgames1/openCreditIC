@@ -44,17 +44,17 @@ function publicCard(card) {
 
 // Semicolon CSV with UTF-8 BOM for Turkish Excel. Only trusted integer amounts
 // are emitted as numbers; every text cell is quoted and formula-like text neutralized.
+function textCell(value) {
+  let text = String(value ?? '');
+  if (/^[\s\u0000-\u001f\u007f\ufeff]*[=+\-@]/u.test(text) || /^[\t\r\n]/u.test(text)) text = "'" + text;
+  return '"' + text.replace(/"/g, '""') + '"';
+}
+function money(cents) {
+  if (!Number.isSafeInteger(cents)) throw new Error('Invalid report amount');
+  const value = Math.abs(cents);
+  return `${cents < 0 ? '-' : ''}${Math.floor(value / 100)},${String(value % 100).padStart(2, '0')}`;
+}
 function reportCsv(report, generatedAt) {
-  const textCell = value => {
-    let text = String(value ?? '');
-    if (/^[\s\u0000-\u001f\u007f\ufeff]*[=+\-@]/u.test(text) || /^[\t\r\n]/u.test(text)) text = "'" + text;
-    return '"' + text.replace(/"/g, '""') + '"';
-  };
-  const money = cents => {
-    if (!Number.isSafeInteger(cents)) throw new Error('Invalid report amount');
-    const value = Math.abs(cents);
-    return `${cents < 0 ? '-' : ''}${Math.floor(value / 100)},${String(value % 100).padStart(2, '0')}`;
-  };
   const rows = [];
   const row = (section, label, device, amount) => rows.push([textCell(section), textCell(label), textCell(device), amount === undefined ? '' : money(amount)].join(';'));
   rows.push([textCell('Bölüm'), textCell('İşlem türü / açıklama'), textCell('Cihaz / değer'), textCell('Tutar (TL)')].join(';'));
@@ -73,6 +73,15 @@ function reportCsv(report, generatedAt) {
   }
   for (const machine of report.machines) row('Cihaz bazlı oyun harcaması', machine.name, machine.machine_id || 'Bilinmiyor', machine.cents);
   return '\ufeff' + rows.join('\r\n') + '\r\n';
+}
+
+function detailedCsv(result) {
+  const header = ['Zaman (UTC)', 'İşlem türü', 'Tutar (TL)', 'İşlem sonrası hesap bakiyesi (TL)', 'Hesap kimliği', 'Kart UID', 'Personel', 'Cihaz kimliği', 'Cihaz adı', 'Sanal komut durumu (anlık)', 'Komut kimliği', 'İşlem kimliği', 'Not'];
+  const lines = [header.map(textCell).join(';')];
+  for (const row of result.rows) {
+    lines.push([textCell(row.created_at), textCell(row.entry_type), money(row.amount_cents), money(row.balance_after_cents), textCell(row.account_id), textCell(row.card_uid), textCell(row.actor), textCell(row.machine_id), textCell(row.machine_name), textCell(row.command_status), textCell(row.command_id), textCell(row.id), textCell(row.note)].join(';'));
+  }
+  return '\ufeff' + lines.join('\r\n') + '\r\n';
 }
 
 function currentUser(req, store) {
@@ -306,6 +315,23 @@ function createApp({ store, standalone = true }) {
   app.get('/api/history', requireAuth, handle(async (req, res) => {
     const actorUserId = req.user.role === 'staff' ? req.user.id : null;
     res.json({ ok: true, ledger: store.listLedger({ actorUserId }), pulses: req.user.role === 'admin' ? store.listPulses() : [] });
+  }));
+
+  function detailFilters(query, exportAll = false) {
+    const pageString = query.page ?? '1';
+    if (typeof pageString !== 'string' || !/^[1-9]\d{0,5}$/.test(pageString)) throw new DomainError('invalid_page', 'Geçersiz sayfa.');
+    return { from: query.from ?? '', to: query.to ?? '', machineId: query.machineId ?? '', type: query.type ?? '', page: Number(pageString), exportAll };
+  }
+
+  app.get('/api/admin/history/details', requireAuth, requireRole('admin'), handle(async (req, res) => {
+    res.set('Cache-Control', 'no-store');
+    res.json({ ok: true, ...store.detailedLedger(detailFilters(req.query)) });
+  }));
+
+  app.get('/api/admin/history/details.csv', requireAuth, requireRole('admin'), handle(async (req, res) => {
+    const data = store.detailedLedger(detailFilters(req.query, true));
+    res.set({ 'Cache-Control': 'no-store', 'Content-Disposition': 'attachment; filename="opencredit-demo-hareketler.csv"', 'X-Content-Type-Options': 'nosniff' });
+    res.type('text/csv; charset=utf-8').send(detailedCsv(data));
   }));
 
   app.get('/api/report', requireAuth, requireRole('admin'), handle(async (_req, res) => {

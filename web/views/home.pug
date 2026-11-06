@@ -97,6 +97,43 @@ body.bg-dark.text-white
                                 th İşlem kimliği
                         tbody#demoHistoryRows
             section#demoAdmin.card.text-dark.p-3.mt-3.text-left(hidden)
+                h2.h5 Ayrıntılı demo hareketleri
+                p.small Tarihler İstanbul saatine göre, uçlar dahil filtrelenir. Cihaz filtresi yalnız ilgili oyun harcamalarını gösterir; yükleme ve düzeltmeler cihaza bağlı değildir.
+                form#demoDetailForm
+                    label(for='demoDetailFrom') Başlangıç tarihi
+                    input#demoDetailFrom.form-control(type='date' min='1900-01-01' max='9998-12-31')
+                    label(for='demoDetailTo') Bitiş tarihi
+                    input#demoDetailTo.form-control(type='date' min='1900-01-01' max='9998-12-31')
+                    label(for='demoDetailType') İşlem türü
+                    select#demoDetailType.form-control
+                        option(value='') Tüm türler
+                        option(value='topup') Yükleme
+                        option(value='game_charge') Oyun harcaması
+                        option(value='correction') Düzeltme
+                        option(value='refund') İade kaydı
+                        option(value='bonus') Bonus kaydı
+                        option(value='free_play') Ücretsiz oyun kaydı
+                    label(for='demoDetailMachine') Cihaz
+                    select#demoDetailMachine.form-control
+                        option(value='') Tüm cihazlar
+                    button.btn.btn-primary.mt-2(type='submit') Hareketleri göster
+                    button#demoDetailCsv.btn.btn-outline-primary.mt-2.ml-2(type='button') Ayrıntılı CSV indir
+                p#demoDetailStatus.mt-2(role='status')
+                div.table-responsive
+                    table.table.table-sm.text-dark
+                        thead
+                            tr
+                                th Zaman (UTC)
+                                th İşlem
+                                th Tutar (TL)
+                                th İşlem sonrası hesap bakiyesi
+                                th Cihaz / sanal komut durumu
+                                th İşlem kimliği
+                        tbody#demoDetailRows
+                div
+                    button#demoDetailPrevious.btn.btn-outline-secondary(type='button') Önceki sayfa
+                    button#demoDetailNext.btn.btn-outline-secondary.ml-2(type='button') Sonraki sayfa
+                p.small CSV en fazla 5000 filtrelenmiş kayıt içerir; sınır aşılırsa filtreyi daraltın. İşlem sonrası bakiye, rapor döneminin son bakiyesi değildir.
                 h2.h5 Son sanal komutlar
                 p.small Son 25 demo komutu gösterilir. Sanal başarı, fiziksel makinenin kredi aldığının kanıtı değildir; belirsiz sonuç otomatik başarı veya iade değildir.
                 button#demoPulseRefresh.btn.btn-outline-secondary.mb-2(type='button') Komut geçmişini yenile

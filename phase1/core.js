@@ -19,6 +19,28 @@ function isoNow() {
   return new Date().toISOString();
 }
 
+function istanbulDayBounds(value) {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) throw new DomainError('invalid_date', 'Tarih YYYY-AA-GG biçiminde olmalıdır.');
+  const [year, month, day] = value.split('-').map(Number);
+  const start = new Date(Date.UTC(year, month - 1, day));
+  if (year < 1900 || year > 9998 || start.getUTCFullYear() !== year || start.getUTCMonth() !== month - 1 || start.getUTCDate() !== day) throw new DomainError('invalid_date', 'Geçerli bir tarih seçin (1900–9998).');
+  const fmt = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Istanbul', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' });
+  const convert = civil => {
+    const target = civil.getTime();
+    let instant = target;
+    for (let i = 0; i < 5; i++) {
+      const p = Object.fromEntries(fmt.formatToParts(new Date(instant)).filter(x => x.type !== 'literal').map(x => [x.type, x.value]));
+      const actual = Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour, +p.minute, +p.second);
+      const next = instant + target - actual;
+      if (next === instant) return new Date(instant).toISOString();
+      instant = next;
+    }
+    throw new DomainError('invalid_date', 'Bu tarihin yerel saat sınırı belirlenemedi.');
+  };
+  const end = new Date(start); end.setUTCDate(end.getUTCDate() + 1);
+  return { start: convert(start), end: convert(end) };
+}
+
 function makeId(prefix) {
   return `${prefix}_${crypto.randomUUID()}`;
 }
@@ -667,6 +689,39 @@ function createStore(databasePath, options = {}) {
     return many(`SELECT * FROM ledger_entries ORDER BY created_at DESC LIMIT ${safeLimit}`);
   }
 
+  function detailedLedger({ from = '', to = '', machineId = '', type = '', page = 1, exportAll = false } = {}) {
+    for (const value of [from, to, machineId, type]) if (typeof value !== 'string') throw new DomainError('invalid_filter', 'Geçersiz filtre.');
+    if (from && to && from > to) throw new DomainError('invalid_date_range', 'Başlangıç tarihi bitiş tarihinden sonra olamaz.');
+    if (type && !['topup', 'game_charge', 'correction', 'refund', 'bonus', 'free_play'].includes(type)) throw new DomainError('invalid_type', 'Geçersiz işlem türü.');
+    if (machineId && !/^[A-Z0-9_-]{2,64}$/.test(machineId)) throw new DomainError('invalid_machine_id', 'Geçersiz cihaz.');
+    if (!Number.isSafeInteger(page) || page < 1 || page > 100000) throw new DomainError('invalid_page', 'Geçersiz sayfa.');
+    const conditions = [];
+    const params = {};
+    if (from) { conditions.push('l.created_at >= $from'); params.$from = istanbulDayBounds(from).start; }
+    if (to) { conditions.push('l.created_at < $to'); params.$to = istanbulDayBounds(to).end; }
+    if (machineId) { conditions.push('p.machine_id = $machine'); params.$machine = machineId; }
+    if (type) { conditions.push('l.entry_type = $type'); params.$type = type; }
+    const where = conditions.length ? 'WHERE ' + conditions.join(' AND ') : '';
+    const joins = `FROM ledger_entries l LEFT JOIN pulse_commands p ON l.idempotency_key = p.idempotency_key || ':ledger'
+      LEFT JOIN machines m ON m.id = p.machine_id LEFT JOIN users u ON u.id = l.actor_user_id`;
+    // Keep the count and exported rows in one read snapshot, even if another process writes.
+    db.exec('BEGIN');
+    try {
+      const count = one(`SELECT COUNT(*) AS count ${joins} ${where}`, params).count;
+      const limit = exportAll ? 5000 : 25;
+      if (exportAll && count > limit) throw new DomainError('export_limit', 'CSV için en fazla 5000 hareket seçin; tarih veya diğer filtreleri daraltın.', 400);
+      const rows = many(`SELECT l.id, l.created_at, l.entry_type, l.amount_cents, l.balance_after_cents,
+        l.account_id, l.card_uid, l.note, u.username AS actor, p.id AS command_id,
+        p.machine_id, m.name AS machine_name, p.status AS command_status
+        ${joins} ${where} ORDER BY l.created_at DESC, l.id DESC LIMIT $limit OFFSET $offset`, { ...params, $limit: limit, $offset: exportAll ? 0 : (page - 1) * limit });
+      db.exec('COMMIT');
+      return { rows, total: count, page, pageSize: limit, filters: { from, to, machineId, type } };
+    } catch (error) {
+      try { db.exec('ROLLBACK'); } catch (_) { /* preserve original error */ }
+      throw error;
+    }
+  }
+
   function listPulses(limit = 100) {
     const safeLimit = Math.min(Math.max(Number(limit) || 100, 1), 500);
     return many(`SELECT * FROM pulse_commands ORDER BY created_at DESC LIMIT ${safeLimit}`);
@@ -758,7 +813,7 @@ function createStore(databasePath, options = {}) {
     dbPath: resolvedPath, close, getConfig, setConfig, createUser, authenticate, sessionUser, revokeSession, setStaffLocked, issueDemoPasswordReset, completeDemoPasswordReset,
     createAccount, createDemoAccountCard, attachDemoCard, getAccount, listAccounts, createCard, getCard, setCardLock, listCards,
     createMachine, getMachine, updateMachine, setMachineTiming, setMachineLed, reportSimulatedSettings, listMachines, topUp, correctBalance, pay, getPulseCommand, simulatePulse,
-    retryPulse, reviewPulse, listPulseReviews, getIdempotency, listLedger, listPulses, summary, periodReport, getUserCount: () => one('SELECT COUNT(*) AS count FROM users').count,
+    retryPulse, reviewPulse, listPulseReviews, getIdempotency, listLedger, detailedLedger, listPulses, summary, periodReport, getUserCount: () => one('SELECT COUNT(*) AS count FROM users').count,
     getUsers: () => many('SELECT id, username, role, locked, created_at FROM users ORDER BY created_at'),
     getDemoState: getDeviceState,
     setDemoState: setDeviceState,

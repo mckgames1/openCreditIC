@@ -71,6 +71,55 @@ test('insufficient balance is reported as a rejected payment', async () => {
   } finally { await running.close(); }
 });
 
+test('unknown card and real elapsed hold/removal windows preserve one charge per presentation', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencredit-real-wait-'));
+  const running = startServer({ host: '127.0.0.1', port: 0, databasePath: path.join(dir, 'demo.sqlite') });
+  await new Promise(resolve => running.server.once('listening', resolve));
+  const base = `http://127.0.0.1:${running.server.address().port}`;
+  const post = (url, body, cookie) => jsonRequest(base, url, { method: 'POST', body: JSON.stringify(body) }, cookie);
+  try {
+    const admin = (await post('/phase1/api/setup', { username: 'admin', password: 'correct horse battery staple' })).cookie;
+    const timing = await jsonRequest(base, '/phase1/api/machines/DEMO-MACHINE/timing', { method: 'PATCH', body: JSON.stringify({ cardRemovedMs: 200, paymentCooldownMs: 200 }) }, admin);
+    assert.equal(timing.response.status, 200);
+    await post('/phase1/api/topups', { accountId: 'demo-account', cardUid: 'DEMO-0001', amountTl: '100', idempotencyKey: 'real-wait-topup-001' }, admin);
+    const card = (action, cardUid) => post('/phase1/api/demo/simulator/card', { action, cardUid }, admin);
+    const pay = (cardUid, idempotencyKey) => post('/phase1/api/demo/payment', { machineId: 'DEMO-MACHINE', cardUid, idempotencyKey }, admin);
+    assert.equal((await card('approach', 'UNKNOWN-0001')).response.status, 200);
+    const unknown = await pay('UNKNOWN-0001', 'real-wait-unknown-001');
+    assert.equal(unknown.response.status, 404);
+    assert.equal(unknown.data.error, 'card_not_found');
+    assert.equal(running.store.getAccount('demo-account').tl_balance_cents, 10000);
+    assert.equal(running.store.listLedger().filter(entry => entry.entry_type === 'game_charge').length, 0);
+    assert.equal(running.store.summary().pulseCount, 0);
+    assert.equal((await card('remove', 'UNKNOWN-0001')).response.status, 200);
+    await new Promise(resolve => setTimeout(resolve, 300));
+    assert.equal((await card('approach', 'DEMO-0001')).response.status, 200);
+    const first = await pay('DEMO-0001', 'real-wait-payment-001');
+    assert.equal(first.response.status, 201);
+    assert.equal(first.data.balanceAfterCents, 7500);
+    const startedHold = Date.now();
+    await new Promise(resolve => setTimeout(resolve, 300));
+    assert.ok(Date.now() - startedHold >= 200);
+    assert.equal((await card('hold', 'DEMO-0001')).response.status, 200);
+    const held = await pay('DEMO-0001', 'real-wait-held-001');
+    assert.equal(held.response.status, 409);
+    assert.equal(held.data.error, 'card_hold_required');
+    assert.equal(running.store.getAccount('demo-account').tl_balance_cents, 7500);
+    assert.equal(running.store.summary().pulseCount, 1);
+    assert.equal((await card('remove', 'DEMO-0001')).response.status, 200);
+    const startedRemoval = Date.now();
+    await new Promise(resolve => setTimeout(resolve, 300));
+    assert.ok(Date.now() - startedRemoval >= 200);
+    assert.equal((await card('approach', 'DEMO-0001')).response.status, 200);
+    const second = await pay('DEMO-0001', 'real-wait-payment-002');
+    assert.equal(second.response.status, 201);
+    assert.equal(second.data.balanceAfterCents, 5000);
+    assert.notEqual(second.data.pulseCommandId, first.data.pulseCommandId);
+    assert.equal(running.store.listLedger().filter(entry => entry.entry_type === 'game_charge').length, 2);
+    assert.equal(running.store.summary().pulseCount, 2);
+  } finally { await running.close(); }
+});
+
 test('new demo account and card flow remains idempotent through topup and play', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencreditic-new-card-'));
   const running = startServer({ host: '127.0.0.1', port: 0, databasePath: path.join(dir, 'demo.sqlite') });

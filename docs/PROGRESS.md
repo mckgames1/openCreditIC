@@ -28,6 +28,8 @@ Demo yüklemede bekleyen istek aynı tarayıcı profilinin kalıcı depolamasın
 
 Yöneticiye bilinen demo yükleme istek kimliğiyle salt okunur merkez kaydı sorgusu eklendi. Bulunan kayıt tutar, kullanıcı ve işlem sonrası hesap bakiyesini gösterir; kayıt yokken veya tutarsızken sonuç bilinmiyor olarak kalır. Sorgu yeni işlem üretmez. Bekleyen ekran yalnız işlemin sahibine istek kimliğini gösterir. İstek kimliğinin başka cihazda kendiliğinden kurtarılması, sunucuya ulaşmamış isteğin merkezi kaydı ve gerçek para desteği yoktur. 37 Linux testi ve Chromium ile kayıtlı/bilinmeyen sorgu doğrulandı.
 
+Tanımsız kartın ücret ve komut üretmemesi, tutulmuş kartın gerçek bekleme süresi geçtikten sonra ikinci ödemeyi reddetmesi ve yeterli süre çekilmiş kartın yeniden ödeme yapabilmesi izole demo HTTP testine eklendi. Son iki durum Chromium simülatöründe de 200 ms ayar ve 300 ms gerçek beklemeyle denendi. Linux'ta 38 otomatik test geçti; gerçek RFID, fiziksel pulse, Windows ve internetin fiziksel kesilmesi test edilmedi.
+
 Yönetici aynı sayfada seçili demo kartı engelleyebilir veya engelini kaldırabilir. Tekrarlanan aynı durum isteği ikinci denetim olayı üretmez; engelli kart ödeme yapamaz. Chromium ve HTTP testleriyle doğrulandı.
 
 Ana sayfada seçili demo hesaba başka sanal UID bağlanabilir; kartlar aynı bakiyeyi paylaşır. Tekrarlanan bağlama isteği aynı sonucu döndürür, UID yeniden farklı hesaba atanmaz. Chromium'da iki kartın ortak bakiyesi ve HTTP testinde yeniden başlatma doğrulandı. Fiziksel okuyucu bağlantısı yoktur.

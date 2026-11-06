@@ -6,6 +6,7 @@ Kaynak: `MCK_CARD_CODEX_BASLANGIC(1).txt`, bölüm 10. Durum 2026-11-06; yalnız
 
 - SQLite, kuruş bazlı bakiye ve işlem/komut kalıcılığı: `phase1/core.js`; süreç kesintisi testleri `phase1/test/crash.test.js`.
 - Demo yükleme/oyun, aynı istek tekrarı ve yetersiz bakiye: `phase1/test/http.test.js`. Chromium'da 200 TL yükleme, 50 TL oyun ve 150 TL bakiye denendi.
+- Tanımsız sanal kartın ücret/komut üretmemesi, kart tutulurken gerçek bekleme süresi geçse de ikinci isteğin reddi ve kart gerçek bekleme süresince çekildikten sonra yeni ödemenin kabulü, izole demo HTTP testinde doğrulandı. Tutma/çekme akışı Chromium simülatöründe de denendi; gerçek okuyucu testi değildir.
 - İki bağımsız süreçte 25 TL yarışında tek harcama/komut: `phase1/test/concurrency.test.js`; gerçek okuyucu testi değildir.
 - Canlı WAL yedeği ve yeni dosyaya geri yükleme: `phase1/test/backup.test.js`.
 - Admin/staff sunucu yetkisi, personelin kendi geçmişi: `phase1/server.js`, `phase1/test/http.test.js`.

@@ -18,6 +18,8 @@ Personel ana sayfada demo yükleme yapar ve son 25 kendi hareketini görür. İ�
 
 Yönetici mevcut ana sayfadan demo personel hesabı oluşturabilir ve erişimini durdurup açabilir. Durdurma mevcut oturumları sonlandırır; yeniden açılan hesap eski oturumlarla kullanılamaz. Yönetici kendi parolasını yeniden girerek 10 dakika geçerli tek kullanımlık demo yenileme kodu oluşturabilir; personel kendi yeni parolasını belirlediğinde eski oturumları sona erer. Kodun yalnız özeti saklanır, uygulama kodu dışarı göndermez. Bu değişiklik şema geçişi gerektirmez ve yalnız yerel demo içindir.
 
+Yönetici ana sayfasında son 25 sanal komutun kimliği, cihazı, tutarı ve durumu gösterilir; simülatördeki değişiklikleri yenile düğmesiyle alır. Sunucudaki yetki denetimi korunur ve personel bu kayıtları almaz. Belirsiz durum gerçek kredi veya otomatik iade değildir. 32 Linux testi ve yönetici/personel Chromium akışları geçti. Gerçek donanım, bu sürümde Windows ve interneti fiziksel olarak kesilmiş çalışma henüz doğrulanmadı.
+
 Yönetici aynı sayfada seçili demo kartı engelleyebilir veya engelini kaldırabilir. Tekrarlanan aynı durum isteği ikinci denetim olayı üretmez; engelli kart ödeme yapamaz. Chromium ve HTTP testleriyle doğrulandı.
 
 Ana sayfada seçili demo hesaba başka sanal UID bağlanabilir; kartlar aynı bakiyeyi paylaşır. Tekrarlanan bağlama isteği aynı sonucu döndürür, UID yeniden farklı hesaba atanmaz. Chromium'da iki kartın ortak bakiyesi ve HTTP testinde yeniden başlatma doğrulandı. Fiziksel okuyucu bağlantısı yoktur.

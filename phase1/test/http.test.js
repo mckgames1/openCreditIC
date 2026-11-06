@@ -616,3 +616,32 @@ test('CSV neutralizes formula prefixes and quotes untrusted device names', () =>
   for (const name of names.slice(0, 6)) assert.ok(csv.includes('"\'' + name + '"'));
   assert.ok(csv.includes('"safe;""quoted""\nline"'));
 });
+
+test('admin sees persisted simulated command history and staff cannot obtain it', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencredit-pulse-history-'));
+  const databasePath = path.join(dir, 'demo.sqlite');
+  let running = startServer({ host: '127.0.0.1', port: 0, databasePath });
+  await new Promise(resolve => running.server.once('listening', resolve));
+  let base = `http://127.0.0.1:${running.server.address().port}`;
+  const post = (url, body, cookie) => jsonRequest(base, url, { method: 'POST', body: JSON.stringify(body) }, cookie);
+  try {
+    const admin = (await post('/phase1/api/setup', { username: 'admin', password: 'correct horse battery staple' })).cookie;
+    await post('/phase1/api/admin/users', { username: 'staff', password: 'staff password 1', role: 'staff' }, admin);
+    const staff = (await post('/phase1/api/auth/login', { username: 'staff', password: 'staff password 1' })).cookie;
+    await post('/phase1/api/topups', { accountId: 'demo-account', amountTl: '50', idempotencyKey: 'pulse-view-topup-001' }, admin);
+    await post('/phase1/api/demo/simulator/card', { action: 'approach', cardUid: 'DEMO-0001' }, admin);
+    const payment = await post('/phase1/api/demo/payment', { cardUid: 'DEMO-0001', machineId: 'DEMO-MACHINE', idempotencyKey: 'pulse-view-payment-001' }, admin);
+    await post(`/phase1/api/demo/pulse/${payment.data.pulseCommandId}/simulate`, { outcome: 'response_lost' }, admin);
+    await running.close();
+    running = startServer({ host: '127.0.0.1', port: 0, databasePath });
+    await new Promise(resolve => running.server.once('listening', resolve));
+    base = `http://127.0.0.1:${running.server.address().port}`;
+    const state = (await jsonRequest(base, '/phase1/api/state', {}, admin)).data;
+    assert.equal(state.pulses.length, 1);
+    assert.equal(state.pulses[0].id, payment.data.pulseCommandId);
+    assert.equal(state.pulses[0].status, 'ambiguous');
+    assert.equal(state.pulses[0].machine_id, 'DEMO-MACHINE');
+    assert.equal(state.pulses[0].amount_cents, 2500);
+    assert.deepEqual((await jsonRequest(base, '/phase1/api/state', {}, staff)).data.pulses, []);
+  } finally { await running.close(); }
+});

@@ -36,7 +36,7 @@
     const isAdmin = data.user.role === 'admin';
     if (!isAdmin) {
       reportRequest++;
-      for (const id of ['demoResetIssueResult', 'demoReportTotals', 'demoReportCommands', 'demoReportChart', 'demoReportMachines']) document.getElementById(id).replaceChildren();
+      for (const id of ['demoResetIssueResult', 'demoReportTotals', 'demoReportCommands', 'demoReportChart', 'demoReportMachines', 'demoPulseRows']) document.getElementById(id).replaceChildren();
     }
     document.getElementById('demoHistory').hidden = false;
     document.getElementById('demoHistoryScope').textContent = isAdmin ? 'Son 25 demo hareketi' : 'Son 25 kendi demo hareketiniz';
@@ -55,6 +55,16 @@
     }
     document.getElementById('demoAdmin').hidden = !isAdmin;
     if (isAdmin) {
+      const pulseRows = document.getElementById('demoPulseRows');
+      pulseRows.replaceChildren();
+      const labels = { pending: 'Bekliyor', succeeded: 'Sanal olarak başarılı', ambiguous: 'Belirsiz — inceleme gerekli', failed: 'Sanal olarak başarısız' };
+      for (const pulse of data.pulses) {
+        const row = document.createElement('tr');
+        for (const value of [pulse.created_at, pulse.machine_id, (pulse.amount_cents / 100).toFixed(2) + ' TL', labels[pulse.status] || 'Bilinmeyen durum', pulse.id]) {
+          const cell = document.createElement('td'); cell.textContent = value; row.append(cell);
+        }
+        pulseRows.append(row);
+      }
       const staffList = document.getElementById('demoStaffList');
       staffList.replaceChildren();
       const resetSelect = document.getElementById('demoResetStaff');
@@ -108,6 +118,13 @@
       showMachine();
     }
   }
+  document.getElementById('demoPulseRefresh').addEventListener('click', async event => {
+    const button = event.currentTarget;
+    button.disabled = true;
+    try { await refresh(); tell('Sanal komut geçmişi yenilendi.'); }
+    catch (error) { tell(error.message); }
+    finally { button.disabled = false; }
+  });
   async function refreshReport() {
     const request = ++reportRequest;
     try {

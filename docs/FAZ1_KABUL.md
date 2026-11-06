@@ -14,6 +14,7 @@ Kaynak: `MCK_CARD_CODEX_BASLANGIC(1).txt`, bölüm 10. Durum 2026-11-06; yalnız
 - Yönetici Pug ekranında cihaz bazlı kart çekme ve ödeme bekleme sürelerini ayarlayabilir; iki sanal cihaz, kısa çekilme, başlayan bekleme ve yetki demo API'sinde test edildi.
 - Cihaz bazlı demo LED etkinlik/parlaklık ayarı ve sürümün sanal bekliyor/uygulandı/başarısız durumu vardır; `phase1/test/http.test.js`. Gerçek cihaza aktarım yapılmaz.
 - Sanal ekran, kart yaklaştırma/tutma/çekme, komut geçmişi ve basit tahsilat/harcama/bakiye: `web/views/home.pug`, `phase1/public/`.
+- Yönetici ana ekranında son 25 sanal komutun cihazı, tutarı, kimliği ve durumu ayrıca görünür; geçmiş diğer simülatör ekranından da korunur. Sanal sonuç fiziksel kredi kanıtı değildir.
 - Simülatör ekranı fiyat, işlem, onay, kalan bakiye, yetersiz bakiye ve bağlantı kesik mesajlarını gösterir. Bağlantı kesik seçeneği yerel simülasyondur; gerçek ağ kesintisi yapılmadı.
 
 ## Kısmi

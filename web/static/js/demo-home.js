@@ -10,7 +10,7 @@
   async function api(path, body, method = 'POST') {
     const response = await fetch('/phase1/api/' + path, body ? { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : {});
     const data = await response.json();
-    if (!response.ok) { const error = new Error(data.message || 'İşlem başarısız.'); error.status = response.status; throw error; }
+    if (!response.ok) { const error = new Error(data.message || 'İşlem başarısız.'); error.status = response.status; error.code = data.error; throw error; }
     return data;
   }
   async function refresh(selectedUid) {
@@ -38,7 +38,8 @@
     history.replaceChildren();
     for (const entry of data.ledger) {
       const row = document.createElement('tr');
-      const type = { topup: 'Yükleme', game_charge: 'Oyun harcaması' }[entry.entry_type] || entry.entry_type;
+      let type = { topup: 'Yükleme', game_charge: 'Oyun harcaması', correction: 'Düzeltme' }[entry.entry_type] || entry.entry_type;
+      if (isAdmin && entry.entry_type === 'correction' && entry.note) type += ` — ${entry.note}`;
       for (const value of [entry.created_at, type, (entry.amount_cents / 100).toFixed(2) + ' TL', (entry.balance_after_cents / 100).toFixed(2) + ' TL', entry.id]) {
         const cell = document.createElement('td');
         cell.textContent = value;
@@ -49,7 +50,8 @@
     document.getElementById('demoAdmin').hidden = !isAdmin;
     if (isAdmin) {
       const tl = value => (Number(value) / 100).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' TL';
-      document.getElementById('demoTotals').textContent = `Yükleme: ${tl(data.summary.topups_cents)} · Harcama: ${tl(data.summary.game_charges_cents)} · Kalan bakiye: ${tl(data.accounts.reduce((sum, item) => sum + item.tl_balance_cents, 0))}`;
+      document.getElementById('demoTotals').textContent = `Yükleme: ${tl(data.summary.topups_cents)} · Harcama: ${tl(data.summary.game_charges_cents)} · Net düzeltme: ${tl(data.summary.corrections_cents)} · Kalan bakiye: ${tl(data.accounts.reduce((sum, item) => sum + item.tl_balance_cents, 0))}`;
+      showPendingCorrection();
       const machineSelect = document.getElementById('demoMachine');
       const prior = machineSelect.value;
       machines = data.machines;
@@ -75,6 +77,49 @@
     document.getElementById('demoMachineEnabled').checked = machine.enabled;
   }
   document.getElementById('demoMachine').addEventListener('change', showMachine);
+  const correctionKey = 'opencreditPendingCorrection';
+  function showPendingCorrection() {
+    const pending = JSON.parse(sessionStorage.getItem(correctionKey) || 'null');
+    const message = document.getElementById('demoCorrectionPending');
+    const retry = document.getElementById('demoCorrectionRetry');
+    message.hidden = !pending;
+    retry.hidden = !pending;
+    if (pending) message.textContent = `Sonucu bilinmeyen düzeltme: ${pending.body.accountId} · ${pending.body.direction === 'add' ? '+' : '-'}${pending.body.amountTl} TL. Aynı yönetici ile doğrulayın.`;
+  }
+  async function sendCorrection() {
+    const pending = JSON.parse(sessionStorage.getItem(correctionKey) || 'null');
+    if (!pending) return;
+    if (!currentUser || currentUser.id !== pending.userId) return tell('Düzeltmeyi başlatan yöneticiyle giriş yapın.');
+    const button = document.querySelector('#demoCorrectionForm button');
+    const retry = document.getElementById('demoCorrectionRetry');
+    if (button.disabled || retry.disabled) return;
+    button.disabled = true;
+    retry.disabled = true;
+    try {
+      const result = await api('admin/corrections', pending.body);
+      sessionStorage.removeItem(correctionKey);
+      showPendingCorrection();
+      document.getElementById('demoCorrectionForm').reset();
+      await refresh();
+      tell(`Demo düzeltme ${result.duplicate ? 'doğrulandı' : 'kaydedildi'}: ${result.entryId}.`);
+    } catch (error) {
+      if (error.status === 400 || error.status === 404 || error.code === 'invalid_balance') { sessionStorage.removeItem(correctionKey); showPendingCorrection(); }
+      tell(error.message);
+    } finally { button.disabled = false; retry.disabled = false; }
+  }
+  document.getElementById('demoCorrectionForm').addEventListener('submit', async event => {
+    event.preventDefault();
+    if (!account || !currentUser) return tell('Önce giriş yapın.');
+    if (sessionStorage.getItem(correctionKey)) return tell('Önce bekleyen düzeltmeyi doğrulayın.');
+    sessionStorage.setItem(correctionKey, JSON.stringify({ userId: currentUser.id, body: {
+      accountId: account.id, direction: document.getElementById('demoCorrectionDirection').value,
+      amountTl: document.getElementById('demoCorrectionAmount').value,
+      reason: document.getElementById('demoCorrectionReason').value, idempotencyKey: 'correction-' + crypto.randomUUID()
+    } }));
+    showPendingCorrection();
+    await sendCorrection();
+  });
+  document.getElementById('demoCorrectionRetry').addEventListener('click', sendCorrection);
   document.getElementById('demoStaffForm').addEventListener('submit', async event => {
     event.preventDefault();
     const form = event.currentTarget;
@@ -111,7 +156,17 @@
     } catch (error) { tell(error.message); }
     finally { button.disabled = false; }
   });
-  document.getElementById('demoCardChoice').addEventListener('change', event => { refresh(event.target.value).catch(error => tell(error.message)); });
+  document.getElementById('demoCardChoice').addEventListener('change', async event => {
+    const select = event.currentTarget;
+    const correctionButton = document.querySelector('#demoCorrectionForm button');
+    const depositButton = document.querySelector('#depositModal .modal-footer .btn-primary');
+    select.disabled = true;
+    correctionButton.disabled = true;
+    depositButton.disabled = true;
+    try { await refresh(select.value); }
+    catch (error) { account = null; card = null; tell(error.message); }
+    finally { select.disabled = false; correctionButton.disabled = false; depositButton.disabled = false; }
+  });
   window.registerUser = async () => {
     const button = document.querySelector('#newCardModal .modal-footer .btn-primary');
     if (button.disabled) return;

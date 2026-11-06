@@ -87,7 +87,21 @@ body.bg-dark.text-white
                     button.btn.btn-primary.mt-2.mb-3(type='submit') Personel oluştur
                 h2.h5 Demo işlem özeti
                 p#demoTotals
-                p.small Yükleme ve harcama ayrı gösterilir; toplam bakiye tüm demo hesaplarındadır.
+                p.small Yükleme, harcama ve net düzeltme ayrıdır; toplam bakiye tüm demo hesaplarındadır.
+                h2.h5 Demo bakiye düzeltmesi
+                p.small Seçili sanal hesabı etkiler. Bu demo varsayımıdır; gerçek iade veya tahsilat değildir.
+                form#demoCorrectionForm
+                    label(for='demoCorrectionDirection') Yön
+                    select#demoCorrectionDirection.form-control
+                        option(value='add') Bakiyeye ekle
+                        option(value='subtract') Bakiyeden çıkar
+                    label(for='demoCorrectionAmount') Tutar (TL)
+                    input#demoCorrectionAmount.form-control(type='number' min='0.01' step='0.01' required)
+                    label(for='demoCorrectionReason') Gerekçe (10–1000 karakter)
+                    textarea#demoCorrectionReason.form-control(required minlength='10' maxlength='1000')
+                    button.btn.btn-warning.mt-2.mb-3(type='submit') Demo düzeltmeyi kaydet
+                p#demoCorrectionPending.alert.alert-warning(hidden)
+                button#demoCorrectionRetry.btn.btn-warning(type='button' hidden) Bekleyen düzeltmeyi doğrula
                 h2.h5 Makine ayarları
                 form#demoMachineForm
                     label(for='demoMachine') Makine

@@ -349,6 +349,30 @@ function createStore(databasePath, options = {}) {
     });
   }
 
+  function correctBalance({ accountId, amountCents, reason, idempotencyKey, actorUserId }) {
+    if (!Number.isSafeInteger(amountCents) || amountCents === 0 || Math.abs(amountCents) > 9_000_000_000_000_000) throw new DomainError('invalid_amount', 'Düzeltme tutarı sıfırdan farklı tam kuruş olmalıdır.');
+    const note = String(reason || '').trim();
+    if (note.length < 10 || note.length > 1000) throw new DomainError('invalid_reason', 'Gerekçe 10–1000 karakter olmalıdır.');
+    const payload = { accountId, amountCents, reason: note, actorUserId };
+    return withImmediateTransaction(() => {
+      const key = ensureIdempotency(idempotencyKey, 'correction', payload);
+      if (key.duplicate) return { ...key.response, duplicate: true };
+      const account = getAccount(accountId);
+      const balanceAfterCents = account.tl_balance_cents + amountCents;
+      if (!Number.isSafeInteger(balanceAfterCents) || balanceAfterCents < 0) throw new DomainError('invalid_balance', 'Düzeltme bakiyeyi eksiye düşüremez veya sayısal sınırı aşamaz.', 409);
+      const entryId = makeId('led');
+      run(`INSERT INTO ledger_entries (id, account_id, actor_user_id, entry_type, amount_cents, ticket_delta, balance_after_cents, idempotency_key, note, created_at)
+           VALUES ($id, $account, $actor, 'correction', $amount, 0, $balance, $key, $note, $created)`, {
+        $id: entryId, $account: accountId, $actor: actorUserId, $amount: amountCents, $balance: balanceAfterCents, $key: `${key.key}:ledger`, $note: note, $created: isoNow()
+      });
+      run('UPDATE accounts SET tl_balance_cents = $balance, updated_at = $updated WHERE id = $account', { $balance: balanceAfterCents, $updated: isoNow(), $account: accountId });
+      audit('balance.corrected', actorUserId, { entryId, accountId, amountCents, reason: note });
+      const response = { ok: true, entryId, accountId, amountCents, balanceAfterCents };
+      saveIdempotency(key.key, 'correction', key.hash, response);
+      return response;
+    });
+  }
+
   function pay({ machineId, cardUid, idempotencyKey, actorUserId = null, simulator = false }) {
     const payload = { machineId: String(machineId || '').trim().toUpperCase(), cardUid: normalizeUid(cardUid) };
     return withImmediateTransaction(() => {
@@ -494,6 +518,7 @@ function createStore(databasePath, options = {}) {
     const row = one(`SELECT
       COALESCE(SUM(CASE WHEN entry_type = 'topup' THEN amount_cents ELSE 0 END), 0) AS topups_cents,
       COALESCE(SUM(CASE WHEN entry_type = 'game_charge' THEN -amount_cents ELSE 0 END), 0) AS game_charges_cents,
+      COALESCE(SUM(CASE WHEN entry_type = 'correction' THEN amount_cents ELSE 0 END), 0) AS corrections_cents,
       COALESCE(SUM(CASE WHEN entry_type = 'bonus' THEN amount_cents ELSE 0 END), 0) AS bonuses_cents,
       COALESCE(SUM(CASE WHEN entry_type = 'free_play' THEN -amount_cents ELSE 0 END), 0) AS free_play_cents,
       COUNT(*) AS ledger_count FROM ledger_entries`);
@@ -505,7 +530,7 @@ function createStore(databasePath, options = {}) {
   return {
     dbPath: resolvedPath, close, getConfig, setConfig, createUser, authenticate, sessionUser, revokeSession,
     createAccount, createDemoAccountCard, getAccount, listAccounts, createCard, getCard, setCardLock, listCards,
-    createMachine, getMachine, updateMachine, listMachines, topUp, pay, getPulseCommand, simulatePulse,
+    createMachine, getMachine, updateMachine, listMachines, topUp, correctBalance, pay, getPulseCommand, simulatePulse,
     retryPulse, reviewPulse, listPulseReviews, getIdempotency, listLedger, listPulses, summary, getUserCount: () => one('SELECT COUNT(*) AS count FROM users').count,
     getUsers: () => many('SELECT id, username, role, locked, created_at FROM users ORDER BY created_at'),
     getDemoState: () => one('SELECT * FROM simulator_state WHERE id = 1'),

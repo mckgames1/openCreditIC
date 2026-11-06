@@ -187,6 +187,13 @@ function createApp({ store, standalone = true }) {
     res.status(result.duplicate ? 200 : 201).json({ ...result, amountTl: formatMoney(result.amountCents), balanceAfterTl: formatMoney(result.balanceAfterCents) });
   }));
 
+  app.post('/api/admin/corrections', requireAuth, requireRole('admin'), handle(async (req, res) => {
+    if (!['add', 'subtract'].includes(req.body.direction)) throw new DomainError('invalid_direction', 'Düzeltme yönü geçersiz.');
+    const amount = parseMoneyCents(req.body.amountTl, 'düzeltme');
+    const result = store.correctBalance({ accountId: req.body.accountId, amountCents: req.body.direction === 'subtract' ? -amount : amount, reason: req.body.reason, idempotencyKey: req.body.idempotencyKey, actorUserId: req.user.id });
+    res.status(result.duplicate ? 200 : 201).json(result);
+  }));
+
   app.post('/api/demo/simulator/card', requireAuth, requireRole('admin', 'staff'), handle(async (req, res) => {
     const action = String(req.body.action || '').trim();
     const uid = normalizeUid(req.body.cardUid || 'DEMO-0001');
@@ -236,7 +243,7 @@ function createApp({ store, standalone = true }) {
 
   app.get('/api/report', requireAuth, requireRole('admin'), handle(async (_req, res) => {
     const summary = store.summary();
-    res.json({ ok: true, summary: { ...summary, topupsTl: formatMoney(summary.topups_cents), gameChargesTl: formatMoney(summary.game_charges_cents), bonusesTl: formatMoney(summary.bonuses_cents), freePlayTl: formatMoney(summary.free_play_cents) } });
+    res.json({ ok: true, summary: { ...summary, topupsTl: formatMoney(summary.topups_cents), gameChargesTl: formatMoney(summary.game_charges_cents), correctionsTl: formatMoney(summary.corrections_cents), bonusesTl: formatMoney(summary.bonuses_cents), freePlayTl: formatMoney(summary.free_play_cents) } });
   }));
 
   app.get(mountPath, (_req, res) => res.render('phase1'));

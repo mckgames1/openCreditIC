@@ -215,3 +215,47 @@ test('staff sees only own persisted transactions and cannot change admin setting
     inspection.close();
   } finally { await running.close(); }
 });
+
+test('demo correction is admin-only, atomic, reasoned, idempotent and separated in reports', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencredit-correction-'));
+  const databasePath = path.join(dir, 'demo.sqlite');
+  let running = startServer({ host: '127.0.0.1', port: 0, databasePath });
+  await new Promise(resolve => running.server.once('listening', resolve));
+  let base = `http://127.0.0.1:${running.server.address().port}`;
+  const post = (url, body, cookie) => jsonRequest(base, url, { method: 'POST', body: JSON.stringify(body) }, cookie);
+  try {
+    const admin = (await post('/phase1/api/setup', { username: 'admin', password: 'correct horse battery staple' })).cookie;
+    await post('/phase1/api/admin/users', { username: 'staff', password: 'staff password 1', role: 'staff' }, admin);
+    const staff = (await post('/phase1/api/auth/login', { username: 'staff', password: 'staff password 1' })).cookie;
+    await post('/phase1/api/topups', { accountId: 'demo-account', cardUid: 'DEMO-0001', amountTl: '200', idempotencyKey: 'correction-topup-001' }, admin);
+    const body = { accountId: 'demo-account', direction: 'subtract', amountTl: '12.34', reason: 'Demo kayıt düzeltmesi', idempotencyKey: 'correction-request-001' };
+    assert.equal((await post('/phase1/api/admin/corrections', body, staff)).response.status, 403);
+    assert.equal((await post('/phase1/api/admin/corrections', { ...body, reason: 'kısa' }, admin)).response.status, 400);
+    assert.equal((await post('/phase1/api/admin/corrections', { ...body, amountTl: '200.01' }, admin)).response.status, 409);
+    const created = await post('/phase1/api/admin/corrections', body, admin);
+    assert.equal(created.response.status, 201);
+    assert.equal(created.data.balanceAfterCents, 18766);
+    const repeated = await post('/phase1/api/admin/corrections', body, admin);
+    assert.equal(repeated.data.entryId, created.data.entryId);
+    assert.equal(repeated.data.duplicate, true);
+    assert.equal((await post('/phase1/api/admin/corrections', { ...body, amountTl: '13.00' }, admin)).response.status, 409);
+    assert.equal((await post('/phase1/api/admin/corrections', { ...body, amountTl: '0', idempotencyKey: 'correction-zero-001' }, admin)).response.status, 400);
+    const positive = await post('/phase1/api/admin/corrections', { ...body, direction: 'add', amountTl: '0.01', idempotencyKey: 'correction-positive-001' }, admin);
+    assert.equal(positive.data.balanceAfterCents, 18767);
+    await running.close();
+    running = startServer({ host: '127.0.0.1', port: 0, databasePath });
+    await new Promise(resolve => running.server.once('listening', resolve));
+    base = `http://127.0.0.1:${running.server.address().port}`;
+    const state = (await jsonRequest(base, '/phase1/api/state', {}, admin)).data;
+    assert.equal(state.summary.topups_cents, 20000);
+    assert.equal(state.summary.game_charges_cents, 0);
+    assert.equal(state.summary.corrections_cents, -1233);
+    assert.equal(state.ledger.length, 3);
+    assert.equal(state.ledger.find(entry => entry.id === created.data.entryId).note, body.reason);
+    assert.equal(state.accounts.find(entry => entry.id === 'demo-account').tl_balance_cents, 18767);
+    const { DatabaseSync } = require('node:sqlite');
+    const db = new DatabaseSync(databasePath, { readOnly: true });
+    assert.equal(db.prepare("SELECT COUNT(*) AS n FROM audit_log WHERE event_type = 'balance.corrected'").get().n, 2);
+    db.close();
+  } finally { await running.close(); }
+});

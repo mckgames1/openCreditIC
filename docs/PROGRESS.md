@@ -22,7 +22,9 @@ Ana Pug ekranındaki demo yüklemede yanıt kaybı sonrası aynı sekmede sayfa 
 
 ## Test kanıtı
 
-`npm test` sonucu: **18 test geçti, 0 başarısız**. İki bağımsız süreç ve SQLite bağlantısı, iki sanal cihazın 25 TL bakiyeden 25 TL talebini yarış koşulunda çalıştırdı: ikinci bağlantının kilidi beklediği, tek düşüm ve tek komut, her iki isteğin tekrarı ve SQLite bütünlüğü doğrulandı. Bu çekirdek düzeyi testtir; gerçek iki okuyucu veya iki simülatör oturumu testi değildir. Yarış testi ayrıca beş kez geçti. Canlı WAL yedek ve yeni dosyaya geri yükleme test edildi. Ödeme transaction'ında bakiye güncellemesinden sonra, commit öncesinde ve commit sonrasında süreç SIGKILL ile durdurularak yeniden açma ve tekrar test edildi. Yönetici inceleme yetkisi, fiyat/pulse sınırları, personel geçmişi ve kalıcılık test edildi. Chromium'da ödeme yanıtı kaybı ve tekrar test edildi; inceleme ekranı henüz tarayıcıda test edilmedi.
+Demo yöneticisi ana Pug sayfasında seçili hesaba gerekçeli artı/eksi düzeltme yapabilir. Bu bir demo varsayımıdır; iade veya gerçek tahsilat değildir. Eski hareketler korunur, düzeltme ve denetim kaydı ayrıdır. Tekrar kimliği ve negatif bakiye kontrolü test edildi; Chromium'da 12,34 TL düşüm ve ayrı özet doğrulandı.
+
+`npm test` sonucu: **19 test geçti, 0 başarısız**. İki bağımsız süreç ve SQLite bağlantısı, iki sanal cihazın 25 TL bakiyeden 25 TL talebini yarış koşulunda çalıştırdı: ikinci bağlantının kilidi beklediği, tek düşüm ve tek komut, her iki isteğin tekrarı ve SQLite bütünlüğü doğrulandı. Bu çekirdek düzeyi testtir; gerçek iki okuyucu veya iki simülatör oturumu testi değildir. Yarış testi ayrıca beş kez geçti. Canlı WAL yedek ve yeni dosyaya geri yükleme test edildi. Ödeme transaction'ında bakiye güncellemesinden sonra, commit öncesinde ve commit sonrasında süreç SIGKILL ile durdurularak yeniden açma ve tekrar test edildi. Yönetici inceleme yetkisi, fiyat/pulse sınırları, personel geçmişi ve kalıcılık test edildi. Chromium'da ödeme yanıtı kaybı ve tekrar test edildi; inceleme ekranı henüz tarayıcıda test edilmedi.
 
 Kapsanan akışlar: 200 TL yükleme, 25 TL ödeme, tekrar istek, bağımsız süreçlerden eşzamanlı iki sanal cihaz isteği, kartı tutarken tekrar yaklaştırma, yetersiz bakiye, demo modunda eski yolların reddi, legacy modunda bir route'un varlığı, fiyat snapshot'ı, yeniden açılışta kalıcılık ve personel API yetki reddi.
 
@@ -51,4 +53,4 @@ Yedekleme çalışan SQLite veritabanından tutarlı anlık görüntü alır. Ge
 
 ## Sınırlar
 
-Gerçek RFID, ESP32, TFT, LED, ticket hattı, GPIO, fiziksel pulse, POS, bulut ve internetten erişim doğrulanmadı. Belirsiz komut `ambiguous` durumunda kalır; yönetici karar ve gerekçesi ayrı kaydedilir. Bakiye düzeltmesi veya iade henüz uygulanmamıştır. Gerçek fiziksel pulse sonucu atomik olarak garanti edilemez. Çift tıklamalı yükleme, gerçek okuyucu eşzamanlılığı ve çevrimdışı ağ testleri eksiktir. “Üretime hazır” iddiası yoktur.
+Gerçek RFID, ESP32, TFT, LED, ticket hattı, GPIO, fiziksel pulse, POS, bulut ve internetten erişim doğrulanmadı. Belirsiz komut `ambiguous` durumunda kalır; yönetici karar ve gerekçesi ayrı kaydedilir. Gerçek iade ve düzeltme politikası onaylı değildir. Gerçek fiziksel pulse sonucu atomik olarak garanti edilemez. Çift tıklamalı yükleme, gerçek okuyucu eşzamanlılığı ve çevrimdışı ağ testleri eksiktir. “Üretime hazır” iddiası yoktur.

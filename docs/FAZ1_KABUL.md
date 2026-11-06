@@ -32,12 +32,12 @@ Kaynak: `MCK_CARD_CODEX_BASLANGIC(1).txt`, bölüm 10. Durum 2026-11-06; yalnız
 - Ana ekranda son 25 sunucuda kaydedilmiş demo yükleme istek kimliğiyle görülebilir; personel yalnız kendi kayıtlarını, yönetici tümünü görür. Sunucuya gelmemiş veya tamamlanmamış istekler listelenemez; farklı kimlikle eşzamanlı istekleri tek işlem sayma veya engelleme yoktur.
 - Simülatör kart kaldırma ve bekleme mantığı var; kısa RF kopması fiziksel okuyucuda test edilmedi.
 - İşlem türleri veri modelinde ayrılabilse de iade ve bonus işlemleri ve raporları uçtan uca tamamlanmadı; ücretsiz oyun yalnız gerekçeli sıfır ücretli demo ile sınırlıdır.
-- Yerel varlıklar mevcut; gerçek internet kesilerek tam çevrimdışı kabul testi yapılmadı.
+- Ana ekran ve simülatörün HTML/CSS kaynakları için yerel adres ve erişilebilirlik testi var. Chromium'da tarayıcıdan yerel adres dışındaki HTTP istekleri engellenerek sahte hesap/kart, 200 TL yükleme, 50 TL sanal oyun ve 150 TL bakiye akışı geçti; dış istek girişimi görülmedi. Bu yalnız tarayıcı isteği simülasyonudur; sunucu sürecinin ağ erişimi engellenmedi ve gerçek internet kesilerek tam çevrimdışı kabul testi yapılmadı.
 
 ## Yapılmayan
 
 - Gerçek okuyucu, GPIO veya fiziksel pulse testleri; Faz 2 kapsamındadır.
-- Windows betikleri eklendi; `0c8a04a` için Windows'ta 38/38 test ve 200/50/150 demo akışı bildirildi. Sonraki ücretsiz oyun değişikliği Windows'ta henüz test edilmedi.
+- Windows betikleri eklendi; `e9ee02b` için ayrı Windows testinde 48/48 test ve 200/50/150 demo akışı bildirildi. Sonradan eklenen yerel kaynak testi ve görsel düzeltmesi Windows'ta henüz doğrulanmadı.
 - Gerçek para işlemleri, iade politikası ve tamamlanmamış Faz 1 kabul testleri; üretime hazırlık iddiası yoktur.
 - Gerçek JSON bakiyelerinin dönüştürülmesi; demo ayrı SQLite kullanır.
 

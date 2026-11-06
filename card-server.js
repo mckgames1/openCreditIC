@@ -7,6 +7,8 @@ if (process.env.OPENCREDIT_MODE === 'demo') {
     app.set('view engine', 'pug');
     app.set('views', path.join(__dirname, 'web/views'));
     app.use('/static', express.static(path.join(__dirname, 'web/static')));
+    // The shared Pug stylesheet references this existing local image.
+    app.get('/ui_static/background.jpg', (_req, res) => res.sendFile(path.join(__dirname, 'ui_images/background.jpg')));
     const store = createStore(process.env.PHASE1_DB_PATH || path.join(__dirname, 'phase1-data/demo.sqlite'));
     app.use('/phase1', createApp({ store, standalone: false }));
     app.get('/', (_req, res) => res.redirect('/phase1/'));

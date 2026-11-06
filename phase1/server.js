@@ -174,7 +174,11 @@ function createApp({ store, standalone = true }) {
       config: store.getConfig(),
       accounts: store.listAccounts(),
       cards: store.listCards().map(publicCard),
-      machines: store.listMachines().map(publicMachine),
+      machines: store.listMachines().map(machine => {
+        const result = publicMachine(machine);
+        if (req.user.role !== 'admin') delete result.device_config;
+        return result;
+      }),
       summary: req.user.role === 'admin' ? store.summary() : null,
       simulator: { ...simulator, present: Boolean(simulator.present), payment_latched: Boolean(simulator.payment_latched) },
       ledger: store.listLedger({ actorUserId: req.user.role === 'staff' ? req.user.id : null, limit: 25 }),
@@ -240,6 +244,10 @@ function createApp({ store, standalone = true }) {
     if (req.body.pulseGapMs !== undefined) changes.pulseGapMs = req.body.pulseGapMs;
     if (req.body.enabled !== undefined) changes.enabled = req.body.enabled;
     res.json({ ok: true, machine: publicMachine(store.updateMachine(req.params.id, changes, req.user.id)) });
+  }));
+
+  app.patch('/api/machines/:id/device-config', requireAuth, requireRole('admin'), handle(async (req, res) => {
+    res.json({ ok: true, machine: publicMachine(store.saveDeviceConfig(req.params.id, req.body, req.user.id)) });
   }));
 
   app.patch('/api/admin/settings', requireAuth, requireRole('admin'), handle(async (req, res) => {

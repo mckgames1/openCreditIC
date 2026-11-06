@@ -68,3 +68,22 @@ test('v3 database is backed up before adding customer contacts', () => {
   assert.equal(backup.prepare('SELECT COUNT(*) AS n FROM schema_migrations WHERE version = 4').get().n, 0);
   backup.close();
 });
+
+test('v4 database is backed up before adding connection information', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencredit-v4-'));
+  const file = path.join(dir, 'test.sqlite');
+  const store = createStore(file);
+  store.topUp({ accountId: 'demo-account', amountCents: 4200, idempotencyKey: 'v4-backup-topup' });
+  store.close();
+  const fixture = new DatabaseSync(file);
+  fixture.exec('DROP TABLE device_config; DELETE FROM schema_migrations WHERE version = 5');
+  fixture.close();
+  const migrated = createStore(file);
+  try { assert.equal(migrated.getAccount('demo-account').tl_balance_cents, 4200); }
+  finally { migrated.close(); }
+  const backups = fs.readdirSync(dir).filter(name => name.startsWith('test.sqlite.before-v5-'));
+  assert.equal(backups.length, 1);
+  const backup = new DatabaseSync(path.join(dir, backups[0]), { readOnly: true });
+  assert.equal(backup.prepare('SELECT tl_balance_cents FROM accounts WHERE id = ?').get('demo-account').tl_balance_cents, 4200);
+  backup.close();
+});

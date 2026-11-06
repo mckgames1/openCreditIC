@@ -114,6 +114,7 @@ function createStore(databasePath, options = {}) {
       probe.exec('PRAGMA busy_timeout = 5000');
       if (!probe.prepare('SELECT version FROM schema_migrations WHERE version = 3').get()) backupVersion = 3;
       else if (!probe.prepare('SELECT version FROM schema_migrations WHERE version = 4').get()) backupVersion = 4;
+      else if (!probe.prepare('SELECT version FROM schema_migrations WHERE version = 5').get()) backupVersion = 5;
     } finally { probe.close(); }
     if (backupVersion) {
       const { snapshot } = require('./scripts/snapshot');
@@ -388,7 +389,7 @@ function createStore(databasePath, options = {}) {
 
   function createMachine({ id, name, priceCents = 2500, pulseMs = 100, pulseCount = 1, pulseGapMs = 100, actorUserId = null }) {
     const normalizedId = String(id || '').trim().toUpperCase();
-    if (!/^[A-Z0-9_-]{2,64}$/.test(normalizedId)) throw new DomainError('invalid_machine_id', 'Makine kimliği geçersiz.');
+    if (!/^[A-Z0-9:_-]{2,64}$/.test(normalizedId)) throw new DomainError('invalid_machine_id', 'Makine kimliği geçersiz.');
     const machineName = String(name || '').trim();
     if (!machineName) throw new DomainError('invalid_machine_name', 'Makine adı boş olamaz.');
     validatePulse(pulseMs, pulseCount, pulseGapMs);
@@ -416,7 +417,8 @@ function createStore(databasePath, options = {}) {
     const reportRow = one('SELECT value FROM settings WHERE key = $key', { $key: `demo_settings_report:${machine.id}` });
     const config = configRow ? JSON.parse(configRow.value) : { enabled: true, brightness: 128 };
     const report = reportRow ? JSON.parse(reportRow.value) : {};
-    return { ...machine, led_enabled: config.enabled, led_brightness: config.brightness,
+    const deviceConfig = one('SELECT ip_address, contact_type, language, currency FROM device_config WHERE machine_id = $id', { $id: machine.id });
+    return { ...machine, device_config: deviceConfig || { ip_address: '', contact_type: '', language: '', currency: '' }, led_enabled: config.enabled, led_brightness: config.brightness,
       settings_status: report.version === machine.settings_version ? report.status : 'pending',
       reported_version: report.version ?? null, simulated_led_enabled: report.applied?.enabled ?? false,
       simulated_led_brightness: report.applied?.brightness ?? 0, simulated_applied_version: report.applied?.version ?? null };
@@ -486,6 +488,25 @@ function createStore(databasePath, options = {}) {
     });
     audit('machine.updated', actorUserId, { machineId: machine.id, settingsVersion: machine.settings_version + 1 });
     return getMachine(machine.id);
+  }
+
+  function saveDeviceConfig(id, values, actorUserId) {
+    const machine = getMachine(id);
+    const ip = String(values.ipAddress || '').trim();
+    const contact = String(values.contactType || '').trim().toUpperCase();
+    const language = String(values.language || '').trim();
+    const currency = String(values.currency || '').trim();
+    if (ip && require('node:net').isIP(ip) === 0) throw new DomainError('invalid_ip', 'Geçerli bir IP adresi girin.');
+    if (!['', 'NO', 'NC'].includes(contact)) throw new DomainError('invalid_contact', 'NO veya NC seçin.');
+    if (language.length > 40) throw new DomainError('invalid_language', 'Dil en fazla 40 karakter olmalıdır.');
+    if (!['', 'TL', 'kredi', 'jeton'].includes(currency)) throw new DomainError('invalid_currency', 'Geçerli bir birim seçin.');
+    return withImmediateTransaction(() => {
+      run(`INSERT INTO device_config(machine_id, ip_address, contact_type, language, currency) VALUES ($id,$ip,$contact,$language,$currency)
+        ON CONFLICT(machine_id) DO UPDATE SET ip_address=excluded.ip_address, contact_type=excluded.contact_type, language=excluded.language, currency=excluded.currency`,
+        { $id: machine.id, $ip: ip, $contact: contact, $language: language, $currency: currency });
+      audit('machine.config_recorded', actorUserId, { machineId: machine.id, ipAddress: ip, contactType: contact, language, currency });
+      return getMachine(machine.id);
+    });
   }
 
   function verifyRecordedTopup(response, payload, actorUserId, idempotencyKey) {
@@ -833,7 +854,7 @@ function createStore(databasePath, options = {}) {
     for (const value of [from, to, machineId, type]) if (typeof value !== 'string') throw new DomainError('invalid_filter', 'Geçersiz filtre.');
     if (from && to && from > to) throw new DomainError('invalid_date_range', 'Başlangıç tarihi bitiş tarihinden sonra olamaz.');
     if (type && !['topup', 'game_charge', 'correction', 'refund', 'bonus', 'free_play'].includes(type)) throw new DomainError('invalid_type', 'Geçersiz işlem türü.');
-    if (machineId && !/^[A-Z0-9_-]{2,64}$/.test(machineId)) throw new DomainError('invalid_machine_id', 'Geçersiz cihaz.');
+    if (machineId && !/^[A-Z0-9:_-]{2,64}$/.test(machineId)) throw new DomainError('invalid_machine_id', 'Geçersiz cihaz.');
     if (!Number.isSafeInteger(page) || page < 1 || page > 100000) throw new DomainError('invalid_page', 'Geçersiz sayfa.');
     const conditions = [];
     const params = {};
@@ -954,7 +975,7 @@ function createStore(databasePath, options = {}) {
   return {
     dbPath: resolvedPath, close, getConfig, setConfig, createUser, authenticate, sessionUser, revokeSession, setStaffLocked, issueDemoPasswordReset, completeDemoPasswordReset,
     createAccount, createDemoAccountCard, attachDemoCard, getAccount, listAccounts, createCard, getCard, setCardLock, listCards,
-    createMachine, getMachine, updateMachine, setMachineTiming, setMachineLed, reportSimulatedSettings, listMachines, topUp, prepareDemoTopupIntent, listDemoTopupIntents, executeDemoTopupIntent, correctBalance, pay, demoFreePlay, getPulseCommand, simulatePulse,
+    createMachine, getMachine, updateMachine, saveDeviceConfig, setMachineTiming, setMachineLed, reportSimulatedSettings, listMachines, topUp, prepareDemoTopupIntent, listDemoTopupIntents, executeDemoTopupIntent, correctBalance, pay, demoFreePlay, getPulseCommand, simulatePulse,
     retryPulse, reviewPulse, listPulseReviews, getIdempotency, lookupDemoTopup, recentRecordedDemoTopups, listLedger, detailedLedger, listPulses, summary, periodReport, getUserCount: () => one('SELECT COUNT(*) AS count FROM users').count,
     getUsers: () => many('SELECT id, username, role, locked, created_at FROM users ORDER BY created_at'),
     getDemoState: getDeviceState,
@@ -1009,6 +1030,10 @@ function migrate(db) {
     if (!db.prepare('SELECT version FROM schema_migrations WHERE version = 4').get()) {
       db.exec('CREATE TABLE account_contacts (account_id TEXT PRIMARY KEY REFERENCES accounts(id), phone TEXT NOT NULL)');
       db.prepare('INSERT INTO schema_migrations(version, applied_at) VALUES(4, $now)').run({ $now: isoNow() });
+    }
+    if (!db.prepare('SELECT version FROM schema_migrations WHERE version = 5').get()) {
+      db.exec("CREATE TABLE device_config (machine_id TEXT PRIMARY KEY REFERENCES machines(id), ip_address TEXT NOT NULL DEFAULT '', contact_type TEXT NOT NULL DEFAULT '', language TEXT NOT NULL DEFAULT '', currency TEXT NOT NULL DEFAULT '')");
+      db.prepare('INSERT INTO schema_migrations(version, applied_at) VALUES(5, $now)').run({ $now: isoNow() });
     }
     db.exec('COMMIT');
   } catch (error) { db.exec('ROLLBACK'); throw error; }

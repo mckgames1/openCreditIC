@@ -6,6 +6,7 @@ const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
 const { startServer } = require('../server');
+const { createStore } = require('../core');
 
 async function jsonRequest(base, pathName, options = {}, cookie = '') {
   const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
@@ -160,6 +161,34 @@ test('new demo account and card flow remains idempotent through topup and play',
     assert.equal(running.store.summary().pulseCount, 1);
     assert.equal(running.store.getAccount(first.data.account.id).tl_balance_cents, 0);
   } finally { await running.close(); }
+});
+
+test('device connection information requires admin and persists without activating hardware', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencredit-device-info-'));
+  const databasePath = path.join(dir, 'demo.sqlite');
+  const running = startServer({ host: '127.0.0.1', port: 0, databasePath });
+  await new Promise(resolve => running.server.once('listening', resolve));
+  const base = `http://127.0.0.1:${running.server.address().port}`;
+  const post = (url, body, cookie, method = 'POST') => jsonRequest(base, url, { method, body: JSON.stringify(body) }, cookie);
+  try {
+    const admin = (await post('/phase1/api/setup', { username: 'admin', password: 'correct horse battery staple' })).cookie;
+    await post('/phase1/api/admin/users', { username: 'staff', password: 'staff password 1', role: 'staff' }, admin);
+    const staff = (await post('/phase1/api/auth/login', { username: 'staff', password: 'staff password 1' })).cookie;
+    const create = await post('/phase1/api/machines', { id: 'AA:BB:CC:DD:EE:FF', name: 'Superbikes 3', priceTl: '50', pulseMs: 100, pulseCount: 1, pulseGapMs: 100 }, admin);
+    assert.equal(create.response.status, 201);
+    const path = '/phase1/api/machines/' + encodeURIComponent('AA:BB:CC:DD:EE:FF') + '/device-config';
+    const payload = { ipAddress: '192.168.1.20', contactType: 'NO', language: 'Türkçe', currency: 'TL' };
+    assert.equal((await post(path, payload, staff, 'PATCH')).response.status, 403);
+    assert.equal((await post(path, { ...payload, ipAddress: 'not-an-ip' }, admin, 'PATCH')).response.status, 400);
+    const saved = await post(path, payload, admin, 'PATCH');
+    assert.equal(saved.data.machine.device_config.ip_address, payload.ipAddress);
+    assert.equal(saved.data.machine.device_config.contact_type, 'NO');
+    const staffState = await jsonRequest(base, '/phase1/api/state', {}, staff);
+    assert.equal(staffState.data.machines.find(item => item.id === 'AA:BB:CC:DD:EE:FF').device_config, undefined);
+  } finally { await running.close(); }
+  const reopened = createStore(databasePath);
+  try { assert.equal(reopened.getMachine('AA:BB:CC:DD:EE:FF').device_config.ip_address, '192.168.1.20'); }
+  finally { reopened.close(); }
 });
 
 test('only admin can record an idempotent review; restart preserves original payment', async () => {

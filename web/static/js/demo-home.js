@@ -384,6 +384,10 @@
     const machine = machines.find(item => item.id === document.getElementById('demoMachine').value);
     if (!machine) return;
     document.getElementById('demoMachineName').value = machine.name;
+    document.getElementById('deviceIp').value = machine.device_config.ip_address;
+    document.getElementById('deviceContact').value = machine.device_config.contact_type;
+    document.getElementById('deviceLanguage').value = machine.device_config.language;
+    document.getElementById('deviceCurrency').value = machine.device_config.currency;
     document.getElementById('demoPrice').value = (machine.price_cents / 100).toFixed(2);
     document.getElementById('demoPulseMs').value = machine.pulse_ms;
     document.getElementById('demoPulseCount').value = machine.pulse_count;
@@ -605,6 +609,21 @@
       }, 'PATCH');
       await refresh();
       tell('Makine ayarları kaydedildi.');
+    } catch (error) { tell(error.message); }
+    finally { button.disabled = false; }
+  });
+  document.getElementById('deviceConfigForm').addEventListener('submit', async event => {
+    event.preventDefault();
+    const button = event.currentTarget.querySelector('button'); button.disabled = true;
+    try {
+      await api('machines/' + encodeURIComponent(document.getElementById('demoMachine').value) + '/device-config', {
+        ipAddress: document.getElementById('deviceIp').value,
+        contactType: document.getElementById('deviceContact').value,
+        language: document.getElementById('deviceLanguage').value,
+        currency: document.getElementById('deviceCurrency').value
+      }, 'PATCH');
+      await refresh();
+      tell('Bağlantı bilgileri kaydedildi; cihaza aktarılmadı.');
     } catch (error) { tell(error.message); }
     finally { button.disabled = false; }
   });

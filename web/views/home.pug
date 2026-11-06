@@ -277,7 +277,7 @@ body.bg-dark.text-white(class=(typeof demoMode !== 'undefined' && demoMode ? 'de
                 h2.h5 Makine ekle
                 form#demoCreateMachineForm
                     label(for='demoNewMachineId') Makine kimliği
-                    input#demoNewMachineId.form-control(required pattern='[A-Za-z0-9_-]{2,64}' maxlength='64')
+                    input#demoNewMachineId.form-control(required pattern='[A-Za-z0-9:_-]{2,64}' maxlength='64')
                     label(for='demoNewMachineName') Makine adı
                     input#demoNewMachineName.form-control(required maxlength='120')
                     label(for='demoNewMachinePrice') Oyun fiyatı (TL)
@@ -301,6 +301,25 @@ body.bg-dark.text-white(class=(typeof demoMode !== 'undefined' && demoMode ? 'de
                     input#demoLedBrightness.form-control(type='number' min='0' max='255' step='1' required)
                     button.btn.btn-primary.mt-2.mb-3(type='submit') LED ayarını kaydet
                 p#demoSettingsStatus
+                h2.h5 Cihaz bağlantı bilgileri
+                p.small Bilgiler kaydedilir; cihaza bağlantı veya ayar aktarımı henüz yapılmaz.
+                form#deviceConfigForm
+                    label(for='deviceIp') IP adresi
+                    input#deviceIp.form-control(type='text' maxlength='45' placeholder='Örn. 192.168.1.20')
+                    label(for='deviceContact') Pulse bağlantısı
+                    select#deviceContact.form-control
+                        option(value='') Seçilmedi
+                        option(value='NO') NO
+                        option(value='NC') NC
+                    label(for='deviceLanguage') Cihaz dili
+                    input#deviceLanguage.form-control(type='text' maxlength='40' placeholder='Örn. Türkçe')
+                    label(for='deviceCurrency') Birim
+                    select#deviceCurrency.form-control
+                        option(value='') Seçilmedi
+                        option(value='TL') TL
+                        option(value='kredi') Kredi
+                        option(value='jeton') Jeton
+                    button.btn.btn-primary.mt-2(type='submit') Bağlantı bilgilerini kaydet
                 h2.h5 Makine ayarları
                 form#demoMachineForm
                     label(for='demoMachine') Makine

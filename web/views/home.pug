@@ -78,6 +78,13 @@ body.bg-dark.text-white
                                 th İşlem kimliği
                         tbody#demoHistoryRows
             section#demoAdmin.card.text-dark.p-3.mt-3.text-left(hidden)
+                h2.h5 Demo personel hesabı oluştur
+                form#demoStaffForm
+                    label(for='demoStaffUsername') Personel kullanıcı adı
+                    input#demoStaffUsername.form-control(required minlength='3' maxlength='64' pattern='[A-Za-z0-9._-]+' autocomplete='off')
+                    label(for='demoStaffPassword') Başlangıç parolası (en az 10 karakter)
+                    input#demoStaffPassword.form-control(type='password' required minlength='10' autocomplete='new-password')
+                    button.btn.btn-primary.mt-2.mb-3(type='submit') Personel oluştur
                 h2.h5 Demo işlem özeti
                 p#demoTotals
                 p.small Yükleme ve harcama ayrı gösterilir; toplam bakiye tüm demo hesaplarındadır.

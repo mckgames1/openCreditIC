@@ -75,6 +75,23 @@
     document.getElementById('demoMachineEnabled').checked = machine.enabled;
   }
   document.getElementById('demoMachine').addEventListener('change', showMachine);
+  document.getElementById('demoStaffForm').addEventListener('submit', async event => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const button = form.querySelector('button');
+    if (button.disabled) return;
+    button.disabled = true;
+    try {
+      const result = await api('admin/users', {
+        username: document.getElementById('demoStaffUsername').value,
+        password: document.getElementById('demoStaffPassword').value,
+        role: 'staff'
+      });
+      form.reset();
+      tell(`Demo personel hesabı oluşturuldu: ${result.user.username}.`);
+    } catch (error) { tell(error.message); }
+    finally { button.disabled = false; }
+  });
   document.getElementById('demoMachineForm').addEventListener('submit', async event => {
     event.preventDefault();
     const button = event.currentTarget.querySelector('button');

@@ -180,7 +180,13 @@ test('staff sees only own persisted transactions and cannot change admin setting
   const post = (url, body, cookie) => jsonRequest(base, url, { method: 'POST', body: JSON.stringify(body) }, cookie);
   try {
     const admin = (await post('/phase1/api/setup', { username: 'admin', password: 'correct horse battery staple' })).cookie;
-    for (const name of ['staff1', 'staff2']) await post('/phase1/api/admin/users', { username: name, password: 'staff password 1', role: 'staff' }, admin);
+    for (const name of ['staff1', 'staff2']) {
+      const created = await post('/phase1/api/admin/users', { username: name, password: 'staff password 1', role: 'staff' }, admin);
+      assert.equal(created.response.status, 201);
+      assert.equal(created.data.user.role, 'staff');
+      assert.equal(Object.hasOwn(created.data.user, 'password_hash'), false);
+    }
+    assert.equal((await post('/phase1/api/admin/users', { username: 'staff1', password: 'staff password 1', role: 'staff' }, admin)).response.status, 409);
     const staff1 = (await post('/phase1/api/auth/login', { username: 'staff1', password: 'staff password 1' })).cookie;
     const staff2 = (await post('/phase1/api/auth/login', { username: 'staff2', password: 'staff password 1' })).cookie;
     const topup = { accountId: 'demo-account', cardUid: 'DEMO-0001', amountTl: '10', idempotencyKey: 'staff1-topup-001' };

@@ -31,6 +31,7 @@ test('demo blocks legacy routes and legacy mode retains its route', async () => 
         const page = await (await fetch(`http://127.0.0.1:${port}/phase1/home`)).text();
         assert.match(page, /id="depositModal"/);
         assert.match(page, /demo-home\.js/);
+        assert.match(page, /id="demoStaffForm"/);
         const setup = await fetch(`http://127.0.0.1:${port}/phase1/api/setup`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ username: 'admin', password: 'sample password 123' }) });
         assert.equal(setup.status, 201);
         const cookie = setup.headers.get('set-cookie').split(';')[0];

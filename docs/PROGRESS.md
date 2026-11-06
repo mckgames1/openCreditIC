@@ -16,6 +16,8 @@ Mevcut ana sayfada yönetici için makine adı, fiyatı, aktif durumu ve sanal p
 
 Personel ana sayfada demo yükleme yapar ve son 25 kendi hareketini görür. İşlem kimliği ve denetim kaydı saklanır; personel genel özet ve diğer komut geçmişini alamaz. Chromium'da personel girişi, yükleme, geçmiş ve yönetici panelinin gizlenmesi doğrulandı. Gerçek kasa okuyucusu ve oturum eşleme Faz 3'tedir.
 
+Yönetici mevcut ana sayfadan demo personel hesabı oluşturabilir. Chromium'da hesap oluşturma, parola alanının temizlenmesi, personel girişi ve demo yükleme doğrulandı. Personel hesap kapatma veya parola sıfırlama ekranı henüz yoktur.
+
 Ana Pug ekranındaki demo yüklemede yanıt kaybı sonrası aynı sekmede sayfa yenilenirse özgün istek kimliği ve içeriğiyle doğrulama yapılır; Chromium'da sunucu yanıtı kesilerek tek 37 TL yükleme doğrulandı. Sekme kapatılması, farklı tarayıcı veya diğer demo yükleme ekranı için bu kurtarma garantisi yoktur.
 
 ## Test kanıtı

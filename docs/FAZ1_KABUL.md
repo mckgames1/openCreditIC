@@ -14,6 +14,7 @@ Kaynak: `MCK_CARD_CODEX_BASLANGIC(1).txt`, bölüm 10. Durum 2026-11-06; yalnız
 ## Kısmi
 
 - Yönetim arayüzünün kayıt, yükleme, makine ayarları ve özet bölümleri mevcut Pug ana sayfasında; simülatör ve komut incelemesi ayrı demo görünümündedir.
+- Yönetici Pug ana sayfasında demo personeli oluşturabilir; personel parolası scrypt ile saklanır. Personel parola sıfırlama ve hesap devre dışı bırakma arayüzleri henüz yoktur.
 - Belirsiz komut yönetici gerekçesiyle kaydedilir; bakiye düzeltme/iade uygulanmaz (`phase1/core.js`, `phase1/server.js`).
 - Cihaz fiyat/pulse ayarları ve işlem anlık kopyası var; cihaz başına LED, bekleme ve uygulama durumu yönetimi tamamlanmadı.
 - Yükleme tekrarı API'de idempotent; ana Pug ekranında aynı sekmedeki yanıt kaybı ve yenileme kurtarma akışı var. Sekme kapatma, tarayıcı kapanması, diğer ekran ve farklı cihaz oturumları kapsanmaz.

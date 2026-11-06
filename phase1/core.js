@@ -683,13 +683,53 @@ function createStore(databasePath, options = {}) {
     return { ...row, accountCount: one('SELECT COUNT(*) AS count FROM accounts').count, cardCount: one('SELECT COUNT(*) AS count FROM cards').count, machineCount: one('SELECT COUNT(*) AS count FROM machines').count, pulseCount: one('SELECT COUNT(*) AS count FROM pulse_commands').count };
   }
 
+  function periodReport(period, now = new Date()) {
+    if (!['day', 'week', 'month', 'year'].includes(period)) throw new DomainError('invalid_period', 'Geçersiz rapor dönemi.');
+    // Current Istanbul civil time is UTC+03:00; reports cover the current calendar period only.
+    const local = new Date(now.getTime() + 3 * 60 * 60 * 1000);
+    const start = new Date(Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), local.getUTCDate()));
+    if (period === 'week') start.setUTCDate(start.getUTCDate() - (start.getUTCDay() + 6) % 7);
+    if (period === 'month' || period === 'year') start.setUTCDate(1);
+    if (period === 'year') start.setUTCMonth(0);
+    const end = new Date(start);
+    if (period === 'day') end.setUTCDate(end.getUTCDate() + 1);
+    if (period === 'week') end.setUTCDate(end.getUTCDate() + 7);
+    if (period === 'month') end.setUTCMonth(end.getUTCMonth() + 1);
+    if (period === 'year') end.setUTCFullYear(end.getUTCFullYear() + 1);
+    const stamp = date => date.toISOString().slice(0, 19).replace('T', ' ');
+    const params = { $start: stamp(start), $end: stamp(end), $now: now.toISOString() };
+    const where = "datetime(l.created_at, '+03:00') >= $start AND datetime(l.created_at, '+03:00') < $end AND l.created_at <= $now";
+    const totals = one(`SELECT COALESCE(SUM(CASE WHEN l.entry_type='topup' THEN l.amount_cents ELSE 0 END),0) AS topups_cents,
+      COALESCE(SUM(CASE WHEN l.entry_type='game_charge' THEN -l.amount_cents ELSE 0 END),0) AS game_charges_cents,
+      COALESCE(SUM(CASE WHEN l.entry_type='correction' THEN l.amount_cents ELSE 0 END),0) AS corrections_cents
+      FROM ledger_entries l WHERE ${where}`, params);
+    const format = period === 'day' ? '%Y-%m-%d %H:00' : period === 'year' ? '%Y-%m' : '%Y-%m-%d';
+    const rows = many(`SELECT strftime('${format}', l.created_at, '+03:00') AS bucket, SUM(-l.amount_cents) AS cents
+      FROM ledger_entries l WHERE ${where} AND l.entry_type='game_charge' GROUP BY bucket`, params);
+    const byBucket = new Map(rows.map(row => [row.bucket, row.cents]));
+    const buckets = [];
+    for (const cursor = new Date(start); cursor < end;) {
+      const key = period === 'day' ? stamp(cursor).slice(0, 13) + ':00' : period === 'year' ? stamp(cursor).slice(0, 7) : stamp(cursor).slice(0, 10);
+      buckets.push({ label: key, cents: byBucket.get(key) || 0 });
+      if (period === 'day') cursor.setUTCHours(cursor.getUTCHours() + 1);
+      else if (period === 'year') cursor.setUTCMonth(cursor.getUTCMonth() + 1);
+      else cursor.setUTCDate(cursor.getUTCDate() + 1);
+    }
+    const machines = many(`SELECT p.machine_id, COALESCE(m.name, 'Cihazı belirlenemeyen') AS name, SUM(-l.amount_cents) AS cents
+      FROM ledger_entries l LEFT JOIN pulse_commands p ON l.idempotency_key = p.idempotency_key || ':ledger'
+      LEFT JOIN machines m ON m.id = p.machine_id
+      WHERE ${where} AND l.entry_type='game_charge' GROUP BY p.machine_id, m.name ORDER BY cents DESC, p.machine_id`, params);
+    return { period, timezone: 'Europe/Istanbul', start: stamp(start), end: stamp(end), totals, buckets, machines,
+      balance_cents: one('SELECT COALESCE(SUM(tl_balance_cents),0) AS cents FROM accounts').cents };
+  }
+
   function close() { db.close(); }
 
   return {
     dbPath: resolvedPath, close, getConfig, setConfig, createUser, authenticate, sessionUser, revokeSession, setStaffLocked, issueDemoPasswordReset, completeDemoPasswordReset,
     createAccount, createDemoAccountCard, attachDemoCard, getAccount, listAccounts, createCard, getCard, setCardLock, listCards,
     createMachine, getMachine, updateMachine, setMachineTiming, setMachineLed, reportSimulatedSettings, listMachines, topUp, correctBalance, pay, getPulseCommand, simulatePulse,
-    retryPulse, reviewPulse, listPulseReviews, getIdempotency, listLedger, listPulses, summary, getUserCount: () => one('SELECT COUNT(*) AS count FROM users').count,
+    retryPulse, reviewPulse, listPulseReviews, getIdempotency, listLedger, listPulses, summary, periodReport, getUserCount: () => one('SELECT COUNT(*) AS count FROM users').count,
     getUsers: () => many('SELECT id, username, role, locked, created_at FROM users ORDER BY created_at'),
     getDemoState: getDeviceState,
     setDemoState: setDeviceState,

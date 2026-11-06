@@ -5,6 +5,7 @@
   let currentUser;
   let registerKey;
   let machines = [];
+  let reportRequest = 0;
   const notice = document.getElementById('demoNotice');
   const tell = message => { notice.textContent = message; };
   async function api(path, body, method = 'POST') {
@@ -33,7 +34,10 @@
     showPending();
     showPendingCardLink();
     const isAdmin = data.user.role === 'admin';
-    if (!isAdmin) document.getElementById('demoResetIssueResult').textContent = '';
+    if (!isAdmin) {
+      reportRequest++;
+      for (const id of ['demoResetIssueResult', 'demoReportTotals', 'demoReportChart', 'demoReportMachines']) document.getElementById(id).replaceChildren();
+    }
     document.getElementById('demoHistory').hidden = false;
     document.getElementById('demoHistoryScope').textContent = isAdmin ? 'Son 25 demo hareketi' : 'Son 25 kendi demo hareketiniz';
     const history = document.getElementById('demoHistoryRows');
@@ -88,6 +92,7 @@
       document.getElementById('demoCardLock').textContent = card.locked ? 'Kart engelini kaldır' : 'Kartı engelle';
       const tl = value => (Number(value) / 100).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' TL';
       document.getElementById('demoTotals').textContent = `Yükleme: ${tl(data.summary.topups_cents)} · Harcama: ${tl(data.summary.game_charges_cents)} · Net düzeltme: ${tl(data.summary.corrections_cents)} · Kalan bakiye: ${tl(data.accounts.reduce((sum, item) => sum + item.tl_balance_cents, 0))}`;
+      await refreshReport();
       showPendingCorrection();
       const machineSelect = document.getElementById('demoMachine');
       const prior = machineSelect.value;
@@ -103,6 +108,44 @@
       showMachine();
     }
   }
+  async function refreshReport() {
+    const request = ++reportRequest;
+    try {
+      const data = await api('report/period?period=' + encodeURIComponent(document.getElementById('demoReportPeriod').value));
+      if (request !== reportRequest) return;
+      const report = data.report;
+      const tl = cents => (cents / 100).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' TL';
+      document.getElementById('demoReportTotals').textContent = `Dönem yüklemesi: ${tl(report.totals.topups_cents)} · Dönem oyun harcaması: ${tl(report.totals.game_charges_cents)} · Dönem net düzeltmesi: ${tl(report.totals.corrections_cents)} · Şu anki toplam bakiye: ${tl(report.balance_cents)}`;
+      const chart = document.getElementById('demoReportChart');
+      chart.replaceChildren();
+      const maximum = Math.max(1, ...report.buckets.map(item => item.cents));
+      for (const item of report.buckets) {
+        const row = document.createElement('div');
+        const label = document.createElement('span');
+        label.textContent = `${item.label} — ${tl(item.cents)} `;
+        const bar = document.createElement('span');
+        bar.style.cssText = `display:inline-block;height:0.8em;background:#286090;width:${Math.round(item.cents / maximum * 140)}px`;
+        bar.setAttribute('aria-hidden', 'true');
+        row.append(label, bar);
+        chart.append(row);
+      }
+      const list = document.getElementById('demoReportMachines');
+      list.replaceChildren();
+      if (!report.machines.length) {
+        const item = document.createElement('li'); item.textContent = 'Bu dönemde oyun harcaması yok.'; list.append(item);
+      }
+      for (const machine of report.machines) {
+        const item = document.createElement('li'); item.textContent = `${machine.name}${machine.machine_id ? ` (${machine.machine_id})` : ''}: ${tl(machine.cents)}`; list.append(item);
+      }
+    } catch (error) {
+      if (request === reportRequest) {
+        document.getElementById('demoReportTotals').textContent = 'Rapor yüklenemedi: ' + error.message;
+        document.getElementById('demoReportChart').replaceChildren();
+        document.getElementById('demoReportMachines').replaceChildren();
+      }
+    }
+  }
+  document.getElementById('demoReportPeriod').addEventListener('change', refreshReport);
   function showMachine() {
     const machine = machines.find(item => item.id === document.getElementById('demoMachine').value);
     if (!machine) return;

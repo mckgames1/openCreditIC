@@ -539,3 +539,25 @@ test('demo staff password reset requires admin reauthentication, expires and is 
     inspection.close();
   } finally { await running.close(); }
 });
+
+test('period report is admin-only and validates period', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencredit-report-'));
+  const running = startServer({ host: '127.0.0.1', port: 0, databasePath: path.join(dir, 'demo.sqlite') });
+  await new Promise(resolve => running.server.once('listening', resolve));
+  const base = `http://127.0.0.1:${running.server.address().port}`;
+  const post = (url, body, cookie) => jsonRequest(base, url, { method: 'POST', body: JSON.stringify(body) }, cookie);
+  try {
+    const admin = (await post('/phase1/api/setup', { username: 'admin', password: 'correct horse battery staple' })).cookie;
+    await post('/phase1/api/admin/users', { username: 'staff', password: 'staff password 1', role: 'staff' }, admin);
+    const staff = (await post('/phase1/api/auth/login', { username: 'staff', password: 'staff password 1' })).cookie;
+    assert.equal((await jsonRequest(base, '/phase1/api/report/period?period=day')).response.status, 401);
+    assert.equal((await jsonRequest(base, '/phase1/api/report/period?period=day', {}, staff)).response.status, 403);
+    assert.equal((await jsonRequest(base, '/phase1/api/report/period?period=bad', {}, admin)).response.status, 400);
+    for (const period of ['day', 'week', 'month', 'year']) {
+      const result = await jsonRequest(base, `/phase1/api/report/period?period=${period}`, {}, admin);
+      assert.equal(result.response.status, 200);
+      assert.equal(result.data.report.timezone, 'Europe/Istanbul');
+      assert.equal(result.response.headers.get('cache-control'), 'no-store');
+    }
+  } finally { await running.close(); }
+});

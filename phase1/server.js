@@ -280,6 +280,11 @@ function createApp({ store, standalone = true }) {
     res.json({ ok: true, summary: { ...summary, topupsTl: formatMoney(summary.topups_cents), gameChargesTl: formatMoney(summary.game_charges_cents), correctionsTl: formatMoney(summary.corrections_cents), bonusesTl: formatMoney(summary.bonuses_cents), freePlayTl: formatMoney(summary.free_play_cents) } });
   }));
 
+  app.get('/api/report/period', requireAuth, requireRole('admin'), handle(async (req, res) => {
+    res.set('Cache-Control', 'no-store');
+    res.json({ ok: true, report: store.periodReport(req.query.period || 'day') });
+  }));
+
   app.get(mountPath, (_req, res) => res.render('phase1'));
   if (standalone) app.get('/', (_req, res) => res.redirect('/phase1'));
   return app;

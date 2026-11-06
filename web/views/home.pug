@@ -122,6 +122,18 @@ body.bg-dark.text-white
                 h2.h5 Demo işlem özeti
                 p#demoTotals
                 p.small Yükleme, harcama ve net düzeltme ayrıdır; toplam bakiye tüm demo hesaplarındadır.
+                h2.h5 Dönemsel demo oyun harcaması
+                p.small İstanbul saati; içinde bulunulan gün, Pazartesi başlayan hafta, ay veya yıl. Oyun harcaması onaylı demo bakiye kesintisidir; sanal komut sonucu belirsiz olanlar dahil edilir. Gerçek gelir değildir; yükleme ikinci kez gelir olarak eklenmez.
+                label(for='demoReportPeriod') Dönem
+                select#demoReportPeriod.form-control
+                    option(value='day') Günlük
+                    option(value='week') Haftalık
+                    option(value='month') Aylık
+                    option(value='year') Yıllık
+                p#demoReportTotals.mt-2(role='status')
+                div#demoReportChart(aria-label='Dönemsel demo oyun harcaması grafiği')
+                h3.h6.mt-3 Cihaz bazında demo oyun harcaması
+                ul#demoReportMachines
                 h2.h5 Demo bakiye düzeltmesi
                 p.small Seçili sanal hesabı etkiler. Bu demo varsayımıdır; gerçek iade veya tahsilat değildir.
                 form#demoCorrectionForm

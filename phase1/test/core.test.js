@@ -85,3 +85,43 @@ test('payment snapshots the machine settings and survives a reopen', () => {
     assert.equal(reopened.summary().ledger_count, 2);
   } finally { reopened.close(); }
 });
+
+test('period reports separate topups, spending and current balance in Istanbul calendar periods', () => {
+  const { store } = freshStore();
+  const { DatabaseSync } = require('node:sqlite');
+  try {
+    store.createMachine({ id: 'SECOND', name: 'İkinci cihaz', priceCents: 5000 });
+    store.topUp({ accountId: 'demo-account', amountCents: 20000, idempotencyKey: 'report-topup-001' });
+    store.pay({ machineId: 'DEMO-MACHINE', cardUid: 'DEMO-0001', idempotencyKey: 'report-payment-001' });
+    store.pay({ machineId: 'SECOND', cardUid: 'DEMO-0001', idempotencyKey: 'report-payment-002' });
+    store.pay({ machineId: 'SECOND', cardUid: 'DEMO-0001', idempotencyKey: 'report-payment-002' });
+    store.correctBalance({ accountId: 'demo-account', amountCents: 1000, reason: 'Test demo correction', idempotencyKey: 'report-correction-001', actorUserId: null });
+    const db = new DatabaseSync(store.dbPath);
+    const time = db.prepare('UPDATE ledger_entries SET created_at = ? WHERE idempotency_key = ?');
+    time.run('2026-01-04T20:59:59.000Z', 'report-topup-001:ledger');
+    time.run('2026-01-04T21:00:00.000Z', 'report-payment-001:ledger');
+    time.run('2026-01-05T08:00:00.000Z', 'report-payment-002:ledger');
+    time.run('2026-01-05T08:00:00.000Z', 'report-correction-001:ledger');
+    db.close();
+    const now = new Date('2026-01-05T12:00:00.000Z'); // Monday in Istanbul
+    const day = store.periodReport('day', now);
+    assert.equal(day.start, '2026-01-05 00:00:00');
+    assert.equal(day.totals.topups_cents, 0);
+    assert.equal(day.totals.game_charges_cents, 7500);
+    assert.equal(day.totals.corrections_cents, 1000);
+    assert.equal(day.balance_cents, 13500);
+    assert.equal(day.buckets.length, 24);
+    assert.equal(day.buckets[0].cents, 2500);
+    assert.deepEqual(day.machines.map(item => [item.machine_id, item.cents]), [['SECOND', 5000], ['DEMO-MACHINE', 2500]]);
+    const week = store.periodReport('week', now);
+    assert.equal(week.start, '2026-01-05 00:00:00');
+    assert.equal(week.buckets.length, 7);
+    const month = store.periodReport('month', now);
+    assert.equal(month.totals.topups_cents, 20000);
+    assert.equal(month.totals.game_charges_cents, 7500);
+    assert.equal(month.buckets.length, 31);
+    assert.equal(store.periodReport('year', now).buckets.length, 12);
+    assert.equal(store.periodReport('day', new Date('2026-01-04T21:00:00.000Z')).totals.game_charges_cents, 2500);
+    assert.throws(() => store.periodReport('invalid'), /dönemi/);
+  } finally { store.close(); }
+});

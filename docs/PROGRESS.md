@@ -22,6 +22,10 @@ Yönetici ana sayfasında son 25 sanal komutun kimliği, cihazı, tutarı ve dur
 
 Yöneticiye tarih/tür/cihaz filtreli sayfalı demo hareket geçmişi ve ayrı ayrıntılı CSV eklendi. Tarih aralığı İstanbul günleriyle hesaplanır, CSV 5000 kayıt üstünde hata verir; özet CSV korunur. İşlem sonrası hesap bakiyesi dönem sonu toplamı değildir. Gerçek veriye geçiş, Windows/Excel ve fiziksel donanım doğrulanmadı.
 
+Demo yüklemede bekleyen istek aynı tarayıcı profilinin kalıcı depolamasına gönderimden önce kaydedilir; iki demo ekranı kaydı ortak kullanır. Yanıt kaybı ve tarayıcı/sunucu yeniden başlatması sonrası aynı kullanıcıyla aynı işlem kimliği doğrulanabilir; farklı kullanıcı sunucuda reddedilir. Hatalı veya okunamayan kayıt kendiliğinden silinmez, depolama yazılamazsa yeni istek gönderilmez. Profil temizleme, özel mod, cihaz değişimi ve aynı anda bağımsız yeni işlemler bu mekanizmanın dışında; sunucu tabanlı bekleyen istek kuyruğu veya kullanıcı arayüzünden gerekçeli iptal henüz yoktur.
+
+36 Linux otomatik testi geçti. Chromium kalıcı profiliyle sunucuya ulaşan ancak yanıtı kaybolan yükleme, tarayıcı ve sunucu yeniden başlatma, başka kullanıcının reddi, sunucuya hiç ulaşmayan isteğin diğer demo ekranından doğrulanması ve bozuk kayıtla gönderimin engellenmesi denendi. Windows ve gerçek ağ/donanım test edilmedi.
+
 Yönetici aynı sayfada seçili demo kartı engelleyebilir veya engelini kaldırabilir. Tekrarlanan aynı durum isteği ikinci denetim olayı üretmez; engelli kart ödeme yapamaz. Chromium ve HTTP testleriyle doğrulandı.
 
 Ana sayfada seçili demo hesaba başka sanal UID bağlanabilir; kartlar aynı bakiyeyi paylaşır. Tekrarlanan bağlama isteği aynı sonucu döndürür, UID yeniden farklı hesaba atanmaz. Chromium'da iki kartın ortak bakiyesi ve HTTP testinde yeniden başlatma doğrulandı. Fiziksel okuyucu bağlantısı yoktur.

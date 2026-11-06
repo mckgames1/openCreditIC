@@ -508,18 +508,22 @@
       tell('Giriş yapıldı. Yükleme düğmesiyle demo bakiye ekleyebilirsiniz.');
     } catch (error) { tell(error.message); }
   });
-  const pendingStorageKey = 'opencreditPendingHomeTopup';
-  function getPending() { return JSON.parse(sessionStorage.getItem(pendingStorageKey) || 'null'); }
+  function getPending() { return PendingDemoTopups.list()[0] || null; }
   function showPending() {
-    const pending = getPending();
     const message = document.getElementById('demoPendingNotice');
     const retry = document.getElementById('demoRetryTopup');
-    message.hidden = !pending;
-    retry.hidden = !pending;
-    if (pending) message.textContent = `Sonucu bilinmeyen demo yükleme: ${pending.body.cardUid} · ${pending.body.amountTl} TL. Aynı kullanıcıyla doğrulayın; yeni yükleme başlatılamaz.`;
+    try {
+      const pending = getPending();
+      message.hidden = !pending;
+      retry.hidden = !pending;
+      if (pending) message.textContent = currentUser?.id === pending.userId
+        ? `Sonucu bilinmeyen demo yükleme: ${pending.body.cardUid} · ${pending.body.amountTl} TL. Aynı kullanıcıyla doğrulayın; yeni yükleme başlatılamaz.`
+        : 'Bu tarayıcıda başka bir kullanıcının bekleyen demo yüklemesi var; işlemi başlatan kullanıcıyla doğrulayın.';
+    } catch (_) { message.hidden = false; retry.hidden = true; message.textContent = 'Bekleyen demo kaydı okunamıyor; yeni yükleme başlatılmadı. Tarayıcı verisini silmeyin ve durumu inceleyin.'; }
   }
   async function sendPendingTopup() {
-    const pending = getPending();
+    let pending;
+    try { pending = getPending(); } catch (_) { showPending(); return; }
     if (!pending) return;
     if (!currentUser || currentUser.id !== pending.userId) return tell('Bekleyen yüklemeyi başlatan kullanıcıyla giriş yapın.');
     const button = document.querySelector('#depositModal .modal-footer .btn-primary');
@@ -529,24 +533,27 @@
     retry.disabled = true;
     try {
       const result = await api('topups', pending.body);
-      sessionStorage.removeItem(pendingStorageKey);
+      PendingDemoTopups.clear(pending);
       showPending();
       await refresh(pending.body.cardUid);
       tell(`${result.duplicate ? 'Önceki yükleme doğrulandı' : 'Demo yükleme tamamlandı'}. İşlem ${result.entryId}; bakiye ${result.balanceAfterTl} TL.`);
       window.$('#depositModal').modal('hide');
     } catch (error) {
-      if (error.status === 400 || error.status === 404) { sessionStorage.removeItem(pendingStorageKey); showPending(); }
-      tell(error.message + ' Bekleyen işlemi aynı içerikle doğrulayın.');
+      tell(error.message + ' Kayıt korunuyor; sonuç belirsizse inceleyin ve aynı istekle doğrulayın.');
     } finally { button.disabled = false; retry.disabled = false; }
   }
   window.depositCredits = async () => {
     if (!account || !card || !currentUser) return tell('Önce giriş yapın.');
-    if (getPending()) return tell('Önce bekleyen yüklemeyi doğrulayın.');
-    const pending = { userId: currentUser.id, body: { accountId: account.id, cardUid: card.uid, amountTl: document.getElementById('depositBalance').value, idempotencyKey: 'topup-' + crypto.randomUUID() } };
-    sessionStorage.setItem(pendingStorageKey, JSON.stringify(pending));
+    const amountTl = document.getElementById('depositBalance').value;
+    if (!PendingDemoTopups.validAmount(amountTl)) return tell('Geçerli pozitif demo tutarı girin (en fazla iki ondalık).');
+    try { if (getPending()) return tell('Önce bekleyen yüklemeyi doğrulayın.'); }
+    catch (_) { showPending(); return; }
+    const pending = { userId: currentUser.id, body: { accountId: account.id, cardUid: card.uid, amountTl, idempotencyKey: 'topup-' + crypto.randomUUID() } };
+    try { PendingDemoTopups.save(pending); } catch (_) { tell('Demo isteği tarayıcıya kaydedilemedi; yükleme gönderilmedi.'); return; }
     showPending();
     await sendPendingTopup();
   };
   document.getElementById('demoRetryTopup').addEventListener('click', sendPendingTopup);
+  window.addEventListener('storage', showPending);
   refresh().catch(() => {});
 })();

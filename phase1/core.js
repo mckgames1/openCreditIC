@@ -485,7 +485,11 @@ function createStore(databasePath, options = {}) {
     const payload = { accountId, cardUid: cardUid ? normalizeUid(cardUid) : null, amountCents, entryType, note: note || null };
     return withImmediateTransaction(() => {
       const idempotency = ensureIdempotency(idempotencyKey, 'topup', payload);
-      if (idempotency.duplicate) return { ...idempotency.response, duplicate: true };
+      if (idempotency.duplicate) {
+        const original = one('SELECT actor_user_id FROM ledger_entries WHERE id = $id', { $id: idempotency.response.entryId });
+        if (!original || original.actor_user_id !== actorUserId) throw new DomainError('topup_owner_mismatch', 'Yüklemeyi başlatan kullanıcıyla giriş yapın.', 403);
+        return { ...idempotency.response, duplicate: true };
+      }
       const account = getAccount(accountId);
       if (account.locked) throw new DomainError('account_locked', 'Hesap kilitli.', 403);
       if (payload.cardUid) {

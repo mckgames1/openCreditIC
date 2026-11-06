@@ -128,17 +128,21 @@ $('#account-select').addEventListener('change', () => {
   if (card) $('#card-select').value = card.uid;
 });
 
-const simTopupKey = 'opencreditPendingSimulatorTopup';
-function pendingTopup() { return JSON.parse(sessionStorage.getItem(simTopupKey) || 'null'); }
+function pendingTopup() { return PendingDemoTopups.list()[0] || null; }
 function showPendingTopup() {
-  const pending = pendingTopup();
-  $('#sim-topup-pending').hidden = !pending;
-  $('#sim-topup-retry').hidden = !pending;
-  if (pending) $('#sim-topup-pending').textContent = `Sonucu bilinmeyen demo yükleme: ${pending.body.cardUid} · ${pending.body.amountTl} TL. Aynı kullanıcıyla doğrulayın; yeni yükleme başlatılamaz.`;
+  try {
+    const pending = pendingTopup();
+    $('#sim-topup-pending').hidden = !pending;
+    $('#sim-topup-retry').hidden = !pending;
+    if (pending) $('#sim-topup-pending').textContent = state.data?.user?.id === pending.userId
+      ? `Sonucu bilinmeyen demo yükleme: ${pending.body.cardUid} · ${pending.body.amountTl} TL. Aynı kullanıcıyla doğrulayın; yeni yükleme başlatılamaz.`
+      : 'Bu tarayıcıda başka bir kullanıcının bekleyen demo yüklemesi var; işlemi başlatan kullanıcıyla doğrulayın.';
+  } catch (_) { $('#sim-topup-pending').hidden = false; $('#sim-topup-retry').hidden = true; $('#sim-topup-pending').textContent = 'Bekleyen demo kaydı okunamıyor; yeni yükleme başlatılmadı. Tarayıcı verisini silmeyin ve durumu inceleyin.'; }
 }
 
 async function sendPendingTopup() {
-  const pending = pendingTopup();
+  let pending;
+  try { pending = pendingTopup(); } catch (_) { showPendingTopup(); return; }
   if (!pending) return;
   if (!state.data?.user || state.data.user.id !== pending.userId) return showNotice('Bekleyen yüklemeyi başlatan kullanıcıyla giriş yapın.', true);
   const submit = $('#topup-form button[type="submit"]');
@@ -148,13 +152,12 @@ async function sendPendingTopup() {
   retry.disabled = true;
   try {
     const data = await api('/api/topups', { method: 'POST', body: JSON.stringify(pending.body) });
-    sessionStorage.removeItem(simTopupKey);
+    PendingDemoTopups.clear(pending);
     showPendingTopup();
     showNotice(`${data.duplicate ? 'Önceki yükleme doğrulandı' : 'Demo yükleme tamamlandı'}: ${data.amountTl} TL; bakiye ${data.balanceAfterTl} TL.`);
     await refresh();
   } catch (error) {
-    if (error.status === 400 || error.status === 404) { sessionStorage.removeItem(simTopupKey); showPendingTopup(); }
-    showNotice(`${error.message} Sonuç belirsizse aynı isteği doğrulayın.`, true);
+    showNotice(`${error.message} Kayıt korunuyor; sonuç belirsizse inceleyin ve aynı istekle doğrulayın.`, true);
   } finally { submit.disabled = false; retry.disabled = false; }
 }
 
@@ -242,14 +245,18 @@ $('#remove').addEventListener('click', () => runAction('remove'));
 $('#topup-form').addEventListener('submit', async (event) => {
   event.preventDefault();
   if (!state.data?.user) return showNotice('Önce giriş yapın.', true);
-  if (pendingTopup()) return showNotice('Önce bekleyen yüklemeyi doğrulayın.', true);
+  try { if (pendingTopup()) return showNotice('Önce bekleyen yüklemeyi doğrulayın.', true); }
+  catch (_) { showPendingTopup(); return; }
   const body = Object.fromEntries(new FormData(event.currentTarget));
+  if (!PendingDemoTopups.validAmount(body.amountTl)) return showNotice('Geçerli pozitif demo tutarı girin (en fazla iki ondalık).', true);
   body.idempotencyKey = idempotency('topup');
-  sessionStorage.setItem(simTopupKey, JSON.stringify({ userId: state.data.user.id, body }));
+  try { PendingDemoTopups.save({ userId: state.data.user.id, body }); }
+  catch (_) { return showNotice('Demo isteği tarayıcıya kaydedilemedi; yükleme gönderilmedi.', true); }
   showPendingTopup();
   await sendPendingTopup();
 });
 $('#sim-topup-retry').addEventListener('click', sendPendingTopup);
+window.addEventListener('storage', showPendingTopup);
 
 async function sendPayment(key, cardOverride, machineOverride) {
   if ($('#sim-connection').value === 'offline') {

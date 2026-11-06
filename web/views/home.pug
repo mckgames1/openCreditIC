@@ -42,6 +42,7 @@ head
     if typeof demoMode !== 'undefined' && demoMode
         style.
             .demo-hidden, #findUserModal, #showUserModel, #showFreePlayModel, #headerDepositFreeplay, #collapseDepositFreeplay, #depositAccordion, #newCardModal #initialBalance, #newCardModal label[for='initialBalance'], #newCardModal #userID, #newCardModal label[for='userID'], #newCardModal #userContact, #newCardModal label[for='userContact'], #newCardModal #userNotes, #newCardModal label[for='cardName'] ~ input:not(#cardNum) { display: none !important; }
+        script(src='/phase1/pending-topup.js' defer)
         script(src='/static/js/demo-home.js' defer)
 body.bg-dark.text-white
     div.background

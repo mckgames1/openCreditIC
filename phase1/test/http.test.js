@@ -702,3 +702,33 @@ test('admin detailed history filters, paginates and exports safely without trunc
     assert.equal((await tooMany.json()).error, 'export_limit');
   } finally { await running.close(); }
 });
+
+test('lost topup response can only be retried by original user after restart', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencredit-topup-owner-'));
+  const databasePath = path.join(dir, 'demo.sqlite');
+  let running = startServer({ host: '127.0.0.1', port: 0, databasePath });
+  await new Promise(resolve => running.server.once('listening', resolve));
+  let base = `http://127.0.0.1:${running.server.address().port}`;
+  const post = (url, body, cookie) => jsonRequest(base, url, { method: 'POST', body: JSON.stringify(body) }, cookie);
+  try {
+    const admin = (await post('/phase1/api/setup', { username: 'admin', password: 'correct horse battery staple' })).cookie;
+    await post('/phase1/api/admin/users', { username: 'staff', password: 'staff password 1', role: 'staff' }, admin);
+    const staff = (await post('/phase1/api/auth/login', { username: 'staff', password: 'staff password 1' })).cookie;
+    const body = { accountId: 'demo-account', cardUid: 'DEMO-0001', amountTl: '20', idempotencyKey: 'topup-owner-test-001' };
+    const first = await post('/phase1/api/topups', body, staff);
+    assert.equal(first.response.status, 201);
+    await running.close();
+    running = startServer({ host: '127.0.0.1', port: 0, databasePath });
+    await new Promise(resolve => running.server.once('listening', resolve));
+    base = `http://127.0.0.1:${running.server.address().port}`;
+    assert.equal((await post('/phase1/api/topups', body)).response.status, 401);
+    assert.equal((await post('/phase1/api/topups', body, admin)).response.status, 403);
+    assert.equal((await post('/phase1/api/topups', { ...body, amountTl: '21' }, staff)).response.status, 409);
+    const retry = await post('/phase1/api/topups', body, staff);
+    assert.equal(retry.response.status, 200);
+    assert.equal(retry.data.duplicate, true);
+    assert.equal(retry.data.entryId, first.data.entryId);
+    assert.equal(running.store.getAccount('demo-account').tl_balance_cents, 2000);
+    assert.equal(running.store.listLedger().filter(entry => entry.entry_type === 'topup').length, 1);
+  } finally { await running.close(); }
+});

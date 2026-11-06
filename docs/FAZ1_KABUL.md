@@ -25,7 +25,7 @@ Kaynak: `MCK_CARD_CODEX_BASLANGIC(1).txt`, bölüm 10. Durum 2026-11-06; yalnız
 - Seçili demo dönem özeti ve filtrelenmiş ayrıntılı demo hareketleri yönetici tarafından ayrı CSV dosyaları olarak indirilebilir; ayrıntılı geçmiş tarih, tür ve cihaz filtreleri ile sayfalanır. Windows Excel ile doğrulama henüz yoktur.
 - Belirsiz komut yönetici gerekçesiyle kaydedilir. Demo için yöneticinin gerekçeli artı/eksi bakiye düzeltmesi vardır; bu ayrı bir kayıttır, otomatik iade veya gerçek ödeme değildir (`phase1/core.js`, `phase1/server.js`).
 - Cihaz fiyat/pulse, bekleme ve demo LED ayarları sürümlü; işlem ve başlamış bekleme değerleri korunuyor. Uygulama durumu yalnız simülatör raporudur; gerçek cihaz ayar teslimi ve doğrulaması yoktur.
-- Yükleme tekrarı API'de idempotent; ana Pug ve simülatör ekranlarında aynı sekmedeki yanıt kaybı ve yenileme kurtarma akışı var. Sekme kapatma, tarayıcı kapanması ve farklı cihaz oturumları kapsanmaz.
+- Yükleme tekrarı API'de idempotent; ana Pug ve simülatör ekranları aynı tarayıcı profilinde tarayıcı/sekme kapanışı sonrası bekleyen isteği saklayıp aynı kullanıcıyla doğrular. Profil verisi silinirse, gizli sekme kapanırsa veya başka cihaz kullanılırsa bu istemci kaydı korunmaz; sunucu tabanlı bekleyen istek kuyruğu yoktur. Farklı sekmelerde eşzamanlı bağımsız yeni yüklemeleri tek işlem saymaz.
 - Simülatör kart kaldırma ve bekleme mantığı var; kısa RF kopması fiziksel okuyucuda test edilmedi.
 - İşlem türleri veri modelinde ayrılabilse de iade, bonus, ücretsiz oyun işlemleri ve raporları uçtan uca tamamlanmadı.
 - Yerel varlıklar mevcut; gerçek internet kesilerek tam çevrimdışı kabul testi yapılmadı.

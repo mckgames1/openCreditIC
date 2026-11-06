@@ -12,7 +12,7 @@ Faz 1 tamamlanmadı; yerel demo geliştirme aşamasındadır. `npm run phase1` m
 
 ## Test kanıtı
 
-`npm test` sonucu: **9 test geçti, 0 başarısız**. Yeni hesap/kart, tekrar kayıt ve yükleme, ödeme ve tutulan kart HTTP akışı da kapsandı.
+`npm test` sonucu: **12 test geçti, 0 başarısız**. Ödeme transaction'ında bakiye güncellemesinden sonra, commit öncesinde ve commit sonrasında süreç SIGKILL ile durdurularak SQLite yeniden açma ve aynı istek tekrarı test edildi. Chromium'da yanıtın sunucudan sonra kesilmesi, sayfanın yeniden yüklenmesi ve aynı ödeme kimliğiyle tekrar test edildi; 200 TL yükleme, 50 TL harcama, 150 TL bakiye ve bir komut görüldü.
 
 Kapsanan akışlar: 200 TL yükleme, 25 TL ödeme, tekrar istek, art arda iki ödeme denemesi, kartı tutarken tekrar yaklaştırma, yetersiz bakiye, demo modunda eski yolların reddi, legacy modunda bir route'un varlığı, fiyat snapshot'ı, yeniden açılışta kalıcılık ve personel API yetki reddi. İki bağımsız cihazın gerçek eşzamanlı yarışı test edilmedi.
 
@@ -38,4 +38,4 @@ Kaynak veritabanını durdurmadan restore yapılmaz; yedek doğrulandıktan sonr
 
 ## Sınırlar
 
-Gerçek RFID, ESP32, TFT, LED, ticket hattı, GPIO, fiziksel pulse, POS, bulut ve internetten erişim doğrulanmadı. Fiziksel pulse tekrarının güvenliği ve belirsiz sonuçların yetkili incelemesi uygulanmış değildir. Simülatör ödeme kilidi ve ödeme kaydı ayrı işlemlerdir; çökme aralığı incelenmelidir. Çift tıklamalı yükleme, backup restore, gerçek eşzamanlılık ve çevrimdışı ağ testleri eksiktir. “Üretime hazır” iddiası yoktur.
+Gerçek RFID, ESP32, TFT, LED, ticket hattı, GPIO, fiziksel pulse, POS, bulut ve internetten erişim doğrulanmadı. Belirsiz komut kalıcı `ambiguous` durumunda ve inceleme olayında tutulur; gerekçeli yetkili düzeltme arayüzü henüz yoktur. Gerçek fiziksel pulse sonucu atomik olarak garanti edilemez. Çift tıklamalı yükleme, backup restore, gerçek eşzamanlılık ve çevrimdışı ağ testleri eksiktir. “Üretime hazır” iddiası yoktur.

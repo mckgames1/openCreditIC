@@ -48,9 +48,12 @@ test('pulse retry keeps the original command and payment record', () => {
     const payment = store.pay({ machineId: 'DEMO-MACHINE', cardUid: 'DEMO-0001', idempotencyKey: 'payment-pulse-001' });
     const ambiguous = store.simulatePulse(payment.pulseCommandId, 'response_lost');
     assert.equal(ambiguous.status, 'ambiguous');
-    const retried = store.retryPulse(payment.pulseCommandId);
-    assert.equal(retried.id, payment.pulseCommandId);
-    assert.equal(retried.attempt_count, 1);
+    const { DatabaseSync } = require('node:sqlite');
+    const inspection = new DatabaseSync(store.dbPath);
+    assert.equal(inspection.prepare("SELECT COUNT(*) AS count FROM audit_log WHERE event_type = 'pulse.review_required'").get().count, 1);
+    inspection.close();
+    assert.throws(() => store.retryPulse(payment.pulseCommandId), /inceleme/);
+    assert.equal(store.getPulseCommand(payment.pulseCommandId).status, 'ambiguous');
     assert.equal(store.summary().pulseCount, 1);
     const secondAttempt = store.pay({ machineId: 'DEMO-MACHINE', cardUid: 'DEMO-0001', idempotencyKey: 'payment-pulse-001-different' });
     assert.equal(secondAttempt.approved, false);

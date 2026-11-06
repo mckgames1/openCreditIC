@@ -43,7 +43,7 @@ test('local demo flow enforces card removal and repeats one payment safely', asy
     assert.equal(result.response.status, 409);
     await jsonRequest(base, `/phase1/api/demo/pulse/${pulseId}/simulate`, { method: 'POST', body: JSON.stringify({ outcome: 'response_lost' }) }, cookie);
     result = await jsonRequest(base, `/phase1/api/demo/pulse/${pulseId}/retry`, { method: 'POST', body: '{}' }, cookie);
-    assert.equal(result.data.pulse.id, pulseId);
+    assert.equal(result.response.status, 409);
     result = await jsonRequest(base, '/phase1/api/admin/users', { method: 'POST', body: JSON.stringify({ username: 'staff', password: 'staff password 1', role: 'staff' }) }, cookie);
     assert.equal(result.response.status, 201);
     result = await jsonRequest(base, '/phase1/api/auth/login', { method: 'POST', body: JSON.stringify({ username: 'staff', password: 'staff password 1' }) });

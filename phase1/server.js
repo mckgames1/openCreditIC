@@ -210,21 +210,8 @@ function createApp({ store, standalone = true }) {
 
   app.post('/api/demo/payment', requireAuth, requireRole('admin', 'staff'), handle(async (req, res) => {
     const idempotencyKey = String(req.body.idempotencyKey || '').trim();
-    const existing = store.getIdempotency(idempotencyKey);
     const uid = normalizeUid(req.body.cardUid || 'DEMO-0001');
-    const state = store.getDemoState();
-    const now = Date.now();
-    const config = store.getConfig();
-    if (!existing) {
-      if (!state.present || state.card_uid !== uid) throw new DomainError('card_not_present', 'Kartı yaklaştırıp sabit tutun.', 409);
-      if (state.payment_latched) throw new DomainError('card_hold_required', 'Yeni ödeme için kartı çekip yeniden yaklaştırmalısınız.', 409);
-      if (now < Number(state.eligible_at_ms || 0)) throw new DomainError('card_removed_wait', 'Kartın çekilme bekleme süresi dolmadı.', 409);
-      if (now - Number(state.last_payment_at_ms || 0) < Number(config.payment_cooldown_ms)) throw new DomainError('payment_cooldown', 'Ödeme soğuma süresi devam ediyor.', 409);
-    }
-    const result = store.pay({ machineId: req.body.machineId || 'DEMO-MACHINE', cardUid: uid, idempotencyKey, actorUserId: req.user.id });
-    if (result.approved && !existing) {
-      store.setDemoState({ cardUid: uid, present: true, removedAtMs: state.removed_at_ms, eligibleAtMs: state.eligible_at_ms, paymentLatched: true, lastPaymentAtMs: now });
-    }
+    const result = store.pay({ machineId: req.body.machineId || 'DEMO-MACHINE', cardUid: uid, idempotencyKey, actorUserId: req.user.id, simulator: true });
     res.status(result.duplicate ? 200 : result.approved ? 201 : 402).json({ ...result, balanceAfterTl: formatMoney(result.balanceAfterCents), duplicate: Boolean(result.duplicate) });
   }));
 

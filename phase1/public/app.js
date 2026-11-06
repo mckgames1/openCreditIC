@@ -14,7 +14,11 @@ function showNotice(message, error = false) {
 async function api(url, options = {}) {
   const response = await fetch(`${API_BASE}${url}`, { headers: { 'Content-Type': 'application/json', ...(options.headers || {}) }, ...options });
   const data = await response.json().catch(() => ({ ok: false, message: 'Sunucu yanıtı okunamadı.' }));
-  if (!response.ok && ![402].includes(response.status)) throw new Error(data.message || 'İşlem başarısız.');
+  if (!response.ok && ![402].includes(response.status)) {
+    const error = new Error(data.message || 'İşlem başarısız.');
+    error.status = response.status;
+    throw error;
+  }
   return data;
 }
 
@@ -136,22 +140,33 @@ $('#topup-form').addEventListener('submit', async (event) => {
   } catch (error) { showNotice(error.message, true); }
 });
 
-async function sendPayment(key = idempotency('payment')) {
-  const cardUid = selectedCard();
+async function sendPayment(key) {
+  let pending = JSON.parse(sessionStorage.getItem('demoPendingPayment') || 'null');
+  if (!key && pending) { key = pending.key; }
+  const cardUid = pending && pending.key === key ? pending.cardUid : selectedCard();
+  key ||= idempotency('payment');
+  sessionStorage.setItem('demoPendingPayment', JSON.stringify({ key, cardUid }));
+  $('#pay').disabled = true;
   try {
     const data = await api('/api/demo/payment', { method: 'POST', body: JSON.stringify({ machineId: 'DEMO-MACHINE', cardUid, idempotencyKey: key }) });
     if (!data.approved) {
+      sessionStorage.removeItem('demoPendingPayment');
       showNotice(`Ödeme reddedildi: yetersiz bakiye. Kalan: ${data.balanceAfterTl}.`, true);
       await refresh();
       return;
     }
     state.lastPaymentKey = key;
+    sessionStorage.removeItem('demoPendingPayment');
     state.lastPulseId = data.pulseCommandId || state.lastPulseId;
     $('#repeat-pay').disabled = false;
     if (data.pulseCommandId) { $('#pulse-info').textContent = `Komut: ${data.pulseCommandId} · ${data.priceTl || money(data.priceCents)} · pending`; $('#retry-pulse').disabled = false; }
     showNotice(data.duplicate ? 'Aynı istek tekrarlandı; ikinci düşüm veya pulse oluşturulmadı.' : `Ödeme onaylandı. Kalan: ${data.balanceAfterTl}.`);
     await refresh();
-  } catch (error) { showNotice(error.message, true); }
+  } catch (error) {
+    if (error.status >= 400 && error.status < 500) sessionStorage.removeItem('demoPendingPayment');
+    showNotice(error.status >= 400 && error.status < 500 ? error.message : `${error.message} Aynı ödeme isteğini tekrar deneyin.`, true);
+  }
+  finally { $('#pay').disabled = false; }
 }
 
 $('#pay').addEventListener('click', () => sendPayment());
@@ -164,7 +179,7 @@ document.querySelectorAll('.outcome').forEach((button) => button.addEventListene
 
 $('#retry-pulse').addEventListener('click', async () => {
   if (!state.lastPulseId) return;
-  try { await api(`/api/demo/pulse/${state.lastPulseId}/retry`, { method: 'POST', body: '{}' }); showNotice('Aynı pulse komutu pending durumuna alındı; yeni ödeme oluşturulmadı.'); await refresh(); } catch (error) { showNotice(error.message, true); }
+  try { await api(`/api/demo/pulse/${state.lastPulseId}/retry`, { method: 'POST', body: '{}' }); showNotice('Aynı bekleyen komut kullanıldı; yeni ödeme oluşturulmadı.'); await refresh(); } catch (error) { showNotice(error.message, true); }
 });
 
 $('#machine-form').addEventListener('submit', async (event) => {

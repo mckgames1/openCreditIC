@@ -81,7 +81,7 @@ function formatMoney(cents) {
   return (Number(cents) / 100).toFixed(2);
 }
 
-function createStore(databasePath) {
+function createStore(databasePath, options = {}) {
   const resolvedPath = path.resolve(databasePath);
   fs.mkdirSync(path.dirname(resolvedPath), { recursive: true });
   const db = new DatabaseSync(resolvedPath);
@@ -349,11 +349,20 @@ function createStore(databasePath) {
     });
   }
 
-  function pay({ machineId, cardUid, idempotencyKey, actorUserId = null }) {
+  function pay({ machineId, cardUid, idempotencyKey, actorUserId = null, simulator = false }) {
     const payload = { machineId: String(machineId || '').trim().toUpperCase(), cardUid: normalizeUid(cardUid) };
     return withImmediateTransaction(() => {
       const idempotency = ensureIdempotency(idempotencyKey, 'payment', payload);
       if (idempotency.duplicate) return { ...idempotency.response, duplicate: true };
+      const now = Date.now();
+      if (simulator) {
+        const state = one('SELECT * FROM simulator_state WHERE id = 1');
+        const config = getConfig();
+        if (!state.present || state.card_uid !== payload.cardUid) throw new DomainError('card_not_present', 'Kartı yaklaştırıp sabit tutun.', 409);
+        if (state.payment_latched) throw new DomainError('card_hold_required', 'Yeni ödeme için kartı çekip yeniden yaklaştırmalısınız.', 409);
+        if (now < state.eligible_at_ms) throw new DomainError('card_removed_wait', 'Kartın çekilme bekleme süresi dolmadı.', 409);
+        if (now - state.last_payment_at_ms < config.payment_cooldown_ms) throw new DomainError('payment_cooldown', 'Ödeme soğuma süresi devam ediyor.', 409);
+      }
       const machine = getMachine(payload.machineId);
       const card = getCard(payload.cardUid);
       if (!machine.enabled) throw new DomainError('machine_disabled', 'Makine pasif.', 409);
@@ -376,6 +385,7 @@ function createStore(databasePath) {
       run('UPDATE accounts SET tl_balance_cents = $balanceAfterCents, updated_at = $updatedAt WHERE id = $accountId', {
         $balanceAfterCents: balanceAfterCents, $updatedAt: isoNow(), $accountId: card.account_id
       });
+      if (options.testHook) options.testHook('after_balance');
       run(`INSERT INTO pulse_commands (id, machine_id, account_id, card_uid, actor_user_id, amount_cents,
            pulse_ms, pulse_count, pulse_gap_ms, status, attempt_count, idempotency_key, created_at, updated_at)
            VALUES ($id, $machineId, $accountId, $cardUid, $actorUserId, $amountCents, $pulseMs, $pulseCount, $pulseGapMs,
@@ -386,7 +396,9 @@ function createStore(databasePath) {
       });
       const response = { ok: true, approved: true, balanceAfterCents, priceCents, pulseCommandId, settingsVersion: machine.settings_version };
       saveIdempotency(idempotency.key, 'payment', idempotency.hash, response);
+      if (simulator) run('UPDATE simulator_state SET payment_latched = 1, last_payment_at_ms = $now, updated_at = $updatedAt WHERE id = 1', { $now: now, $updatedAt: isoNow() });
       audit('payment.approved', actorUserId, { accountId: card.account_id, cardUid: card.uid, machineId: machine.id, pulseCommandId });
+      if (options.testHook) options.testHook('before_commit');
       return response;
     });
   }
@@ -406,19 +418,23 @@ function createStore(databasePath) {
     if (!['succeeded', 'response_lost', 'connection_lost', 'failed'].includes(outcome)) {
       throw new DomainError('invalid_pulse_outcome', 'Geçersiz simülasyon sonucu.');
     }
-    const command = getPulseCommand(commandId);
-    if (command.status === 'succeeded') return command;
-    const status = outcome === 'succeeded' ? 'succeeded' : outcome === 'failed' ? 'failed' : 'ambiguous';
-    run('UPDATE pulse_commands SET status = $status, last_outcome = $outcome, updated_at = $updatedAt WHERE id = $id', {
-      $id: command.id, $status: status, $outcome: outcome, $updatedAt: isoNow()
+    return withImmediateTransaction(() => {
+      const command = getPulseCommand(commandId);
+      if (command.status === 'succeeded') return command;
+      if (command.status !== 'pending') throw new DomainError('pulse_review_required', 'Komut inceleme bekliyor; otomatik sonuç değiştirilemez.', 409);
+      const status = outcome === 'succeeded' ? 'succeeded' : outcome === 'failed' ? 'failed' : 'ambiguous';
+      run('UPDATE pulse_commands SET status = $status, last_outcome = $outcome, updated_at = $updatedAt WHERE id = $id', {
+        $id: command.id, $status: status, $outcome: outcome, $updatedAt: isoNow()
+      });
+      audit(status === 'ambiguous' ? 'pulse.review_required' : 'pulse.simulated', actorUserId, { commandId, outcome, status });
+      return getPulseCommand(commandId);
     });
-    audit('pulse.simulated', actorUserId, { commandId, outcome, status });
-    return getPulseCommand(commandId);
   }
 
   function retryPulse(commandId, actorUserId = null) {
     const command = getPulseCommand(commandId);
     if (command.status === 'succeeded') return command;
+    if (command.status !== 'pending') throw new DomainError('pulse_review_required', 'Belirsiz veya başarısız komut inceleme bekliyor; otomatik tekrar yok.', 409);
     run('UPDATE pulse_commands SET status = \'pending\', attempt_count = attempt_count + 1, last_outcome = NULL, updated_at = $updatedAt WHERE id = $id', {
       $id: command.id, $updatedAt: isoNow()
     });

@@ -28,6 +28,8 @@ Bağımlılık kurulumu `NPM_CONFIG_CACHE=/tmp/opencreditic-npm-cache npm ci` il
 
 ## Çalıştırma
 
+Windows için `KURULUM.bat`, `BASLAT.bat`, `TEST.bat` eklendi; Node/SQLite/bağımlılık kontrolleri ve hata mesajları içerir. Betikler Windows üzerinde henüz çalıştırılmadı. Test dosyaları platformlar arası Node test başlatıcısıyla seçilir.
+
 ```text
 npm ci
 npm run phase1

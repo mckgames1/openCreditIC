@@ -77,6 +77,17 @@ Use something like pm2 or systemd to run as a daemon
 
 Faz 1 demo modu mevcut Express girişinden başlar ve Pug ile gösterilir. Demo SQLite verisi ayrıdır; eski JSON yolları bu modda kayıt edilmez.
 
+### Windows 10/11
+
+1. Node.js ve npm kurun. En az Node.js 22.5 ve kullanılabilir `node:sqlite` gerekir; betik bunu kontrol eder. Node.js 24 ile Linux ortamında test edilmiştir.
+2. Proje klasöründe `KURULUM.bat` dosyasını çalıştırın. İlk bağımlılık kurulumu için internet gerekir. Mevcut `node_modules` varsa üzerine yazılmaz; eksik veya bozuksa hata bildirilir.
+3. `BASLAT.bat` dosyasını çalıştırın ve tarayıcıda `http://127.0.0.1:1787/phase1/home` adresini açın. İlk açılışta yönetici hesabını kendiniz oluşturun. Pencere açık kaldığı sürece sunucu çalışır; `Ctrl+C` ile durdurun.
+4. İsteğe bağlı olarak sunucu kapalıyken `TEST.bat` çalıştırın. Test çıktısı hata gösterirse yukarıdaki hata satırlarını saklayın. Testler geçici demo verileri kullanır; 1777 portu boş olmalıdır.
+
+Betikler yönetici izni, güvenlik duvarı değişikliği veya kalıcı servis kurulumu yapmaz. Demo verisi `phase1-data/demo.sqlite` altındadır; mevcut `cards.json` ve `history.json` kullanılmaz. Windows üzerinde bu betikler henüz çalıştırılarak doğrulanmadı. Kurulum yarıda kalırsa oluşan `node_modules` otomatik silinmez; tekrar kurmadan önce içerik ve hata incelenmelidir.
+
+### Komut satırı
+
 ```text
 npm ci
 npm run phase1

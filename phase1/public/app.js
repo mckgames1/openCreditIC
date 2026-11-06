@@ -42,6 +42,8 @@ function screen(mode, detail = '') {
   if (detail) { const line = document.createElement('div'); line.className = 'screen-detail'; line.textContent = detail; label.append(line); }
   const color = mode === 'success' ? 'green' : ['insufficient', 'invalid', 'offline', 'error'].includes(mode) ? 'red' : 'off';
   $('#sim-led').className = `led ${color}`;
+  const machine = state.data?.machines.find(item => item.id === selectedMachine());
+  $('#sim-led').style.opacity = machine?.simulated_led_enabled ? String(machine.simulated_led_brightness / 255) : '0';
 }
 
 async function loadSetup() {
@@ -71,6 +73,9 @@ function render(data) {
   const account = data.accounts[0];
   fillSelect($('#sim-machine-select'), data.machines, item => item.id, item => item.name);
   const machine = data.machines.find(item => item.id === selectedMachine()) || data.machines[0];
+  const statusLabels = { pending: 'Bekliyor', applied: 'Sanal olarak uygulandı', failed: 'Sanal uygulama başarısız' };
+  $('#sim-settings-status').textContent = machine ? `Sürüm ${machine.settings_version}, sanal LED raporu: ${statusLabels[machine.settings_status]}. Gerçek cihaz doğrulaması yok.` : '';
+  $('#sim-settings-actions').hidden = data.user.role !== 'admin';
   $('#balance').textContent = money(account?.tl_balance_cents);
   $('#account-label').textContent = account ? `${account.name} · ${account.id}` : 'Hesap yok';
   $('#machine-price').textContent = money(machine?.price_cents);
@@ -211,6 +216,21 @@ $('#login-form').addEventListener('submit', async (event) => {
 $('#logout').addEventListener('click', async () => { await api('/api/auth/logout', { method: 'POST' }); location.reload(); });
 $('#refresh').addEventListener('click', refresh);
 $('#sim-machine-select').addEventListener('change', refresh);
+async function simulatedSettingsResult(status) {
+  const machine = state.data?.machines.find(item => item.id === selectedMachine());
+  if (!machine) return;
+  const buttons = [$('#sim-settings-apply'), $('#sim-settings-fail')];
+  if (buttons.some(button => button.disabled)) return;
+  buttons.forEach(button => { button.disabled = true; });
+  try {
+    await api(`/api/demo/machines/${encodeURIComponent(machine.id)}/settings-result`, { method: 'POST', body: JSON.stringify({ version: machine.settings_version, status }) });
+    await refresh();
+    showNotice('Sanal ayar sonucu kaydedildi; gerçek cihaza aktarılmadı.');
+  } catch (error) { showNotice(error.message, true); await refresh(); }
+  finally { buttons.forEach(button => { button.disabled = false; }); }
+}
+$('#sim-settings-apply').addEventListener('click', () => simulatedSettingsResult('applied'));
+$('#sim-settings-fail').addEventListener('click', () => simulatedSettingsResult('failed'));
 $('#sim-connection').addEventListener('change', () => {
   if ($('#sim-connection').value === 'offline') screen('offline');
   else if (state.data) renderSimulator(state.data.simulator);

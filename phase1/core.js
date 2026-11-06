@@ -340,7 +340,42 @@ function createStore(databasePath, options = {}) {
                         COALESCE(t.payment_cooldown_ms, 500) AS payment_cooldown_ms
                         FROM machines m LEFT JOIN device_timing t ON t.machine_id = m.id WHERE m.id = $id`, { $id: String(id || '').trim().toUpperCase() });
     if (!machine) throw new DomainError('machine_not_found', 'Makine bulunamadı.', 404);
-    return machine;
+    const configRow = one('SELECT value FROM settings WHERE key = $key', { $key: `demo_led_config:${machine.id}` });
+    const reportRow = one('SELECT value FROM settings WHERE key = $key', { $key: `demo_settings_report:${machine.id}` });
+    const config = configRow ? JSON.parse(configRow.value) : { enabled: true, brightness: 128 };
+    const report = reportRow ? JSON.parse(reportRow.value) : {};
+    return { ...machine, led_enabled: config.enabled, led_brightness: config.brightness,
+      settings_status: report.version === machine.settings_version ? report.status : 'pending',
+      reported_version: report.version ?? null, simulated_led_enabled: report.applied?.enabled ?? false,
+      simulated_led_brightness: report.applied?.brightness ?? 0, simulated_applied_version: report.applied?.version ?? null };
+  }
+
+  function setMachineLed(id, enabled, brightness, actorUserId) {
+    if (typeof enabled !== 'boolean' || !Number.isInteger(brightness) || brightness < 0 || brightness > 255) throw new DomainError('invalid_led', 'LED etkinliği ve 0–255 arası tam sayı parlaklık gereklidir.');
+    return withImmediateTransaction(() => {
+      const machine = getMachine(id);
+      if (machine.led_enabled === enabled && machine.led_brightness === brightness) return machine;
+      run('INSERT INTO settings(key,value) VALUES($key,$value) ON CONFLICT(key) DO UPDATE SET value=excluded.value', { $key: `demo_led_config:${machine.id}`, $value: JSON.stringify({ enabled, brightness }) });
+      run('UPDATE machines SET settings_version = settings_version + 1, updated_at = $now WHERE id = $id', { $id: machine.id, $now: isoNow() });
+      audit('machine.demo_led_updated', actorUserId, { machineId: machine.id, enabled, brightness, settingsVersion: machine.settings_version + 1 });
+      return getMachine(machine.id);
+    });
+  }
+
+  function reportSimulatedSettings(id, version, status, actorUserId) {
+    if (!Number.isSafeInteger(version) || !['applied', 'failed'].includes(status)) throw new DomainError('invalid_report', 'Geçerli sürüm ve sanal sonuç gereklidir.');
+    return withImmediateTransaction(() => {
+      const machine = getMachine(id);
+      if (version !== machine.settings_version) throw new DomainError('stale_version', 'Ayar sürümü değişti; güncel sürümü seçin.', 409);
+      const key = `demo_settings_report:${machine.id}`;
+      const row = one('SELECT value FROM settings WHERE key = $key', { $key: key });
+      const previous = row ? JSON.parse(row.value) : {};
+      if (previous.version === version && previous.status === status) return machine;
+      const applied = status === 'applied' ? { version, enabled: machine.led_enabled, brightness: machine.led_brightness } : (previous.applied || null);
+      run('INSERT INTO settings(key,value) VALUES($key,$value) ON CONFLICT(key) DO UPDATE SET value=excluded.value', { $key: key, $value: JSON.stringify({ version, status, applied }) });
+      audit('machine.simulated_settings_result', actorUserId, { machineId: machine.id, version, status });
+      return getMachine(machine.id);
+    });
   }
 
   function setMachineTiming(id, changes, actorUserId) {
@@ -480,7 +515,9 @@ function createStore(databasePath, options = {}) {
         $amountCents: priceCents, $pulseMs: machine.pulse_ms, $pulseCount: machine.pulse_count, $pulseGapMs: machine.pulse_gap_ms,
         $idempotencyKey: idempotency.key, $createdAt: isoNow(), $updatedAt: isoNow()
       });
-      const response = { ok: true, approved: true, balanceAfterCents, priceCents, pulseCommandId, settingsVersion: machine.settings_version };
+      const response = { ok: true, approved: true, balanceAfterCents, priceCents, pulseCommandId, settingsVersion: machine.settings_version,
+        demoLedSnapshot: { enabled: machine.led_enabled, brightness: machine.led_brightness },
+        simulatedLedSnapshot: { version: machine.simulated_applied_version, enabled: machine.simulated_led_enabled, brightness: machine.simulated_led_brightness } };
       saveIdempotency(idempotency.key, 'payment', idempotency.hash, response);
       if (simulator) run('UPDATE device_simulator_state SET payment_latched = 1, last_payment_at_ms = $now, cooldown_until_ms = $until, updated_at = $updatedAt WHERE machine_id = $id', { $now: now, $until: now + machine.payment_cooldown_ms, $updatedAt: isoNow(), $id: machine.id });
       audit('payment.approved', actorUserId, { accountId: card.account_id, cardUid: card.uid, machineId: machine.id, pulseCommandId });
@@ -563,7 +600,7 @@ function createStore(databasePath, options = {}) {
                  a.locked AS account_locked FROM cards c JOIN accounts a ON a.id = c.account_id ORDER BY c.created_at DESC`);
   }
 
-  function listMachines() { return many(`SELECT m.*, COALESCE(t.card_removed_ms, 1000) AS card_removed_ms, COALESCE(t.payment_cooldown_ms, 500) AS payment_cooldown_ms FROM machines m LEFT JOIN device_timing t ON t.machine_id = m.id ORDER BY m.id`); }
+  function listMachines() { return many('SELECT id FROM machines ORDER BY id').map(row => getMachine(row.id)); }
 
   function getDeviceState(machineId = 'DEMO-MACHINE') {
     const machine = getMachine(machineId);
@@ -609,7 +646,7 @@ function createStore(databasePath, options = {}) {
   return {
     dbPath: resolvedPath, close, getConfig, setConfig, createUser, authenticate, sessionUser, revokeSession, setStaffLocked,
     createAccount, createDemoAccountCard, attachDemoCard, getAccount, listAccounts, createCard, getCard, setCardLock, listCards,
-    createMachine, getMachine, updateMachine, setMachineTiming, listMachines, topUp, correctBalance, pay, getPulseCommand, simulatePulse,
+    createMachine, getMachine, updateMachine, setMachineTiming, setMachineLed, reportSimulatedSettings, listMachines, topUp, correctBalance, pay, getPulseCommand, simulatePulse,
     retryPulse, reviewPulse, listPulseReviews, getIdempotency, listLedger, listPulses, summary, getUserCount: () => one('SELECT COUNT(*) AS count FROM users').count,
     getUsers: () => many('SELECT id, username, role, locked, created_at FROM users ORDER BY created_at'),
     getDemoState: getDeviceState,

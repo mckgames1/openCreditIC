@@ -131,6 +131,16 @@ body.bg-dark.text-white
                     label(for='demoPaymentCooldownMs') Başarılı ödemeler arası bekleme (ms)
                     input#demoPaymentCooldownMs.form-control(type='number' min='0' max='60000' step='1' required)
                     button.btn.btn-primary.mt-2.mb-3(type='submit') Demo sürelerini kaydet
+                h2.h5 Demo LED ayarı
+                p.small Aşağıdaki seçili makineye aittir; 0–255 yalnızca sanal parlaklık ölçeğidir. Gerçek LED'e aktarılmaz.
+                form#demoLedForm
+                    label
+                        input#demoLedEnabled(type='checkbox')
+                        |  Sanal LED etkin
+                    label(for='demoLedBrightness') Sanal parlaklık (0–255)
+                    input#demoLedBrightness.form-control(type='number' min='0' max='255' step='1' required)
+                    button.btn.btn-primary.mt-2.mb-3(type='submit') Demo LED ayarını kaydet
+                p#demoSettingsStatus
                 h2.h5 Makine ayarları
                 form#demoMachineForm
                     label(for='demoMachine') Makine

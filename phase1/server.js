@@ -197,6 +197,14 @@ function createApp({ store, standalone = true }) {
     res.json({ ok: true, machine: publicMachine(store.setMachineTiming(req.params.id, req.body, req.user.id)) });
   }));
 
+  app.patch('/api/machines/:id/led', requireAuth, requireRole('admin'), handle(async (req, res) => {
+    res.json({ ok: true, machine: publicMachine(store.setMachineLed(req.params.id, req.body.enabled, req.body.brightness, req.user.id)) });
+  }));
+
+  app.post('/api/demo/machines/:id/settings-result', requireAuth, requireRole('admin'), handle(async (req, res) => {
+    res.json({ ok: true, machine: publicMachine(store.reportSimulatedSettings(req.params.id, req.body.version, req.body.status, req.user.id)) });
+  }));
+
   app.post('/api/topups', requireAuth, requireRole('admin', 'staff'), handle(async (req, res) => {
     const amountCents = parseMoneyCents(req.body.amountTl ?? req.body.amount, 'yükleme');
     const result = store.topUp({ accountId: req.body.accountId, cardUid: req.body.cardUid || null, amountCents, idempotencyKey: req.body.idempotencyKey, actorUserId: req.user.id });

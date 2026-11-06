@@ -424,3 +424,58 @@ test('admin can suspend and restore staff without reviving old sessions', async 
     db.close();
   } finally { await running.close(); }
 });
+
+test('per-device demo LED settings and simulated version results persist independently', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencredit-led-'));
+  const databasePath = path.join(dir, 'demo.sqlite');
+  let running = startServer({ host: '127.0.0.1', port: 0, databasePath });
+  await new Promise(resolve => running.server.once('listening', resolve));
+  let base = `http://127.0.0.1:${running.server.address().port}`;
+  const post = (url, body, cookie) => jsonRequest(base, url, { method: 'POST', body: JSON.stringify(body) }, cookie);
+  const led = (id, body, cookie) => jsonRequest(base, `/phase1/api/machines/${id}/led`, { method: 'PATCH', body: JSON.stringify(body) }, cookie);
+  const report = (id, body, cookie) => post(`/phase1/api/demo/machines/${id}/settings-result`, body, cookie);
+  try {
+    const admin = (await post('/phase1/api/setup', { username: 'admin', password: 'correct horse battery staple' })).cookie;
+    await post('/phase1/api/admin/users', { username: 'staff', password: 'staff password 1', role: 'staff' }, admin);
+    const staff = (await post('/phase1/api/auth/login', { username: 'staff', password: 'staff password 1' })).cookie;
+    await post('/phase1/api/machines', { id: 'DEVICE-B', name: 'B', priceTl: '25' }, admin);
+    assert.equal((await led('DEMO-MACHINE', { enabled: true, brightness: 20 }, staff)).response.status, 403);
+    assert.equal((await led('DEMO-MACHINE', { enabled: 'true', brightness: 20 }, admin)).response.status, 400);
+    assert.equal((await led('DEMO-MACHINE', { enabled: true, brightness: 256 }, admin)).response.status, 400);
+    const a = (await led('DEMO-MACHINE', { enabled: true, brightness: 30 }, admin)).data.machine;
+    const b = (await led('DEVICE-B', { enabled: false, brightness: 200 }, admin)).data.machine;
+    assert.equal(a.settings_status, 'pending');
+    assert.equal(b.settings_status, 'pending');
+    assert.equal((await report('DEMO-MACHINE', { version: a.settings_version, status: 'applied' }, staff)).response.status, 403);
+    assert.equal((await report('DEMO-MACHINE', { version: a.settings_version - 1, status: 'applied' }, admin)).response.status, 409);
+    const applied = (await report('DEMO-MACHINE', { version: a.settings_version, status: 'applied' }, admin)).data.machine;
+    assert.equal(applied.simulated_led_brightness, 30);
+    assert.equal(applied.settings_status, 'applied');
+    const failed = (await report('DEVICE-B', { version: b.settings_version, status: 'failed' }, admin)).data.machine;
+    assert.equal(failed.settings_status, 'failed');
+    assert.equal(failed.simulated_led_enabled, false);
+    await post('/phase1/api/topups', { accountId: 'demo-account', cardUid: 'DEMO-0001', amountTl: '100', idempotencyKey: 'led-topup-001' }, admin);
+    await post('/phase1/api/demo/simulator/card', { action: 'approach', cardUid: 'DEMO-0001' }, admin);
+    const paymentBody = { cardUid: 'DEMO-0001', idempotencyKey: 'led-payment-001' };
+    const paid = await post('/phase1/api/demo/payment', paymentBody, admin);
+    assert.deepEqual(paid.data.demoLedSnapshot, { enabled: true, brightness: 30 });
+    assert.deepEqual(paid.data.simulatedLedSnapshot, { version: a.settings_version, enabled: true, brightness: 30 });
+    const changed = (await led('DEMO-MACHINE', { enabled: false, brightness: 0 }, admin)).data.machine;
+    assert.equal(changed.settings_status, 'pending');
+    assert.equal(changed.simulated_led_brightness, 30);
+    assert.equal((await report('DEMO-MACHINE', { version: a.settings_version, status: 'applied' }, admin)).response.status, 409);
+    assert.deepEqual((await post('/phase1/api/demo/payment', paymentBody, admin)).data.demoLedSnapshot, { enabled: true, brightness: 30 });
+    assert.deepEqual((await post('/phase1/api/demo/payment', paymentBody, admin)).data.simulatedLedSnapshot, { version: a.settings_version, enabled: true, brightness: 30 });
+    await running.close();
+    running = startServer({ host: '127.0.0.1', port: 0, databasePath });
+    await new Promise(resolve => running.server.once('listening', resolve));
+    base = `http://127.0.0.1:${running.server.address().port}`;
+    const currentA = running.store.getMachine('DEMO-MACHINE');
+    const currentB = running.store.getMachine('DEVICE-B');
+    assert.equal(currentA.settings_status, 'pending');
+    assert.equal(currentA.led_brightness, 0);
+    assert.equal(currentA.simulated_led_brightness, 30);
+    assert.equal(currentB.settings_status, 'failed');
+    assert.equal(currentB.led_brightness, 200);
+  } finally { await running.close(); }
+});

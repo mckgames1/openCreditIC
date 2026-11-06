@@ -103,8 +103,28 @@
     document.getElementById('demoMachineEnabled').checked = machine.enabled;
     document.getElementById('demoCardRemovedMs').value = machine.card_removed_ms;
     document.getElementById('demoPaymentCooldownMs').value = machine.payment_cooldown_ms;
+    document.getElementById('demoLedEnabled').checked = machine.led_enabled;
+    document.getElementById('demoLedBrightness').value = machine.led_brightness;
+    const labels = { pending: 'Bekliyor', applied: 'Sanal olarak uygulandı', failed: 'Sanal uygulama başarısız' };
+    const lastApplied = machine.simulated_applied_version === null ? 'Henüz sanal uygulama yok' : `Son sanal uygulama sürümü ${machine.simulated_applied_version}`;
+    document.getElementById('demoSettingsStatus').textContent = `Ayar sürümü ${machine.settings_version}, sanal LED raporu: ${labels[machine.settings_status]}. ${lastApplied}. Gerçek cihaz doğrulaması yok.`;
   }
   document.getElementById('demoMachine').addEventListener('change', showMachine);
+  document.getElementById('demoLedForm').addEventListener('submit', async event => {
+    event.preventDefault();
+    const button = event.currentTarget.querySelector('button');
+    if (button.disabled) return;
+    button.disabled = true;
+    try {
+      await api('machines/' + encodeURIComponent(document.getElementById('demoMachine').value) + '/led', {
+        enabled: document.getElementById('demoLedEnabled').checked,
+        brightness: Number(document.getElementById('demoLedBrightness').value)
+      }, 'PATCH');
+      await refresh();
+      tell('Demo LED ayarı kaydedildi. Durum seçili makinede gösteriliyor.');
+    } catch (error) { tell(error.message); }
+    finally { button.disabled = false; }
+  });
   document.getElementById('demoCreateMachineForm').addEventListener('submit', async event => {
     event.preventDefault();
     const form = event.currentTarget;

@@ -113,6 +113,12 @@ body.bg-dark.text-white
                                 th İstek kimliği
                                 th Merkez durumu
                         tbody#demoRecordedTopupsRows
+            section#demoOpenIntents.card.text-dark.p-3.mt-3.text-left(hidden)
+                h2.h5 Merkezde bekleyen kendi demo niyetleriniz
+                p.small Yalnız merkeze kaydedilmiş son 25 açık niyet gösterilir. Liste eksikliği, isteğin ulaşmadığını veya başarısız olduğunu kanıtlamaz. Seçilen niyeti tamamla düğmesi demo bakiye yüklemesi yapabilir; belirsiz durumu önce inceleyin.
+                button#demoOpenIntentsRefresh.btn.btn-outline-secondary.mb-2(type='button') Bekleyen niyetleri yenile
+                p#demoOpenIntentsStatus(role='status')
+                ul#demoOpenIntentsRows.list-unstyled
             section#demoAdmin.card.text-dark.p-3.mt-3.text-left(hidden)
                 h2.h5 Belirsiz demo yüklemesini sorgula
                 p.small Bekleyen ekrandaki istek kimliğini girin. Yalnız merkezde kaydedilmiş yükleme bulunabilir; kayıt yoksa istek ulaşmamış, sürüyor veya sonucu bilinmiyor olabilir. Sorgu yükleme, iptal ya da iade yapmaz.

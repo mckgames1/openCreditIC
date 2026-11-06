@@ -264,6 +264,23 @@ function createApp({ store, standalone = true }) {
     res.status(result.duplicate ? 200 : 201).json({ ...result, amountTl: formatMoney(result.amountCents), balanceAfterTl: formatMoney(result.balanceAfterCents) });
   }));
 
+  app.post('/api/demo/topup-intents', requireAuth, requireRole('admin', 'staff'), handle(async (req, res) => {
+    res.set('Cache-Control', 'no-store');
+    const result = store.prepareDemoTopupIntent({ accountId: req.body.accountId, cardUid: req.body.cardUid || null, amountCents: parseMoneyCents(req.body.amountTl, 'yükleme'), idempotencyKey: req.body.idempotencyKey, actorUserId: req.user.id });
+    res.status(result.duplicate ? 200 : 201).json({ ok: true, ...result });
+  }));
+
+  app.get('/api/demo/topup-intents', requireAuth, requireRole('admin', 'staff'), handle(async (req, res) => {
+    res.set('Cache-Control', 'no-store');
+    res.json({ ok: true, intents: store.listDemoTopupIntents(req.user.id) });
+  }));
+
+  app.post('/api/demo/topup-intents/execute', requireAuth, requireRole('admin', 'staff'), handle(async (req, res) => {
+    res.set('Cache-Control', 'no-store');
+    const result = store.executeDemoTopupIntent(req.body.intentId, req.user.id);
+    res.status(result.duplicate ? 200 : 201).json({ ...result, amountTl: formatMoney(result.amountCents), balanceAfterTl: formatMoney(result.balanceAfterCents) });
+  }));
+
   // POST keeps the request identifier out of URLs; this endpoint never mutates data.
   app.post('/api/admin/topups/lookup', requireAuth, requireRole('admin'), handle(async (req, res) => {
     res.set('Cache-Control', 'no-store');

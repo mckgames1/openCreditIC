@@ -948,3 +948,53 @@ test('recorded topup review respects actor and exposes the different-key concurr
     assert.equal(running.store.getAccount('demo-account').tl_balance_cents, 4000);
   } finally { await running.close(); }
 });
+
+test('server demo intent survives restart, binds owner and payload, and two clients execute it once', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencredit-intent-'));
+  const databasePath = path.join(dir, 'demo.sqlite');
+  let running = startServer({ host: '127.0.0.1', port: 0, databasePath });
+  await new Promise(resolve => running.server.once('listening', resolve));
+  let base = `http://127.0.0.1:${running.server.address().port}`;
+  const post = (url, body, cookie) => jsonRequest(base, url, { method: 'POST', body: JSON.stringify(body) }, cookie);
+  try {
+    const admin = (await post('/phase1/api/setup', { username: 'admin', password: 'correct horse battery staple' })).cookie;
+    await post('/phase1/api/admin/users', { username: 'staff', password: 'staff password 1', role: 'staff' }, admin);
+    const staffA = (await post('/phase1/api/auth/login', { username: 'staff', password: 'staff password 1' })).cookie;
+    const staffB = (await post('/phase1/api/auth/login', { username: 'staff', password: 'staff password 1' })).cookie;
+    const body = { accountId: 'demo-account', cardUid: 'DEMO-0001', amountTl: '10', idempotencyKey: 'topup-intent-test-001' };
+    const prepare = '/phase1/api/demo/topup-intents';
+    const execute = '/phase1/api/demo/topup-intents/execute';
+    assert.equal((await post(prepare, body)).response.status, 401);
+    assert.equal((await post(prepare, body, staffA)).response.status, 201);
+    assert.equal((await post(prepare, body, staffB)).data.duplicate, true);
+    assert.equal((await post(prepare, { ...body, amountTl: '11' }, staffA)).response.status, 409);
+    assert.equal((await post(prepare, body, admin)).response.status, 403);
+    assert.equal((await post(execute, { intentId: body.idempotencyKey }, admin)).response.status, 403);
+    assert.equal((await jsonRequest(base, prepare, {}, admin)).data.intents.length, 0);
+    assert.equal(running.store.getAccount('demo-account').tl_balance_cents, 0);
+    await running.close();
+    running = startServer({ host: '127.0.0.1', port: 0, databasePath });
+    await new Promise(resolve => running.server.once('listening', resolve));
+    base = `http://127.0.0.1:${running.server.address().port}`;
+    const open = await jsonRequest(base, prepare, {}, staffB);
+    assert.equal(open.data.intents.length, 1);
+    assert.equal(open.data.intents[0].id, body.idempotencyKey);
+    assert.equal(open.response.headers.get('cache-control'), 'no-store');
+    const first = await Promise.all([post(execute, { intentId: body.idempotencyKey, attemptId: 'first' }, staffA), post(execute, { intentId: body.idempotencyKey, attemptId: 'second' }, staffB)]);
+    assert.deepEqual(first.map(result => result.response.status).sort(), [200, 201]);
+    assert.equal(first[0].data.entryId, first[1].data.entryId);
+    assert.equal(running.store.getAccount('demo-account').tl_balance_cents, 1000);
+    assert.equal((await jsonRequest(base, prepare, {}, staffA)).data.intents.length, 0);
+    assert.equal((await post(execute, { intentId: 'topup-never-arrived-001' }, staffA)).data.error, 'intent_unknown');
+    const secondBody = { ...body, idempotencyKey: 'topup-intent-test-002' };
+    assert.equal((await post(prepare, secondBody, staffA)).response.status, 201);
+    assert.equal((await post(execute, { intentId: secondBody.idempotencyKey }, staffA)).response.status, 201);
+    assert.equal(running.store.getAccount('demo-account').tl_balance_cents, 2000);
+    const legacyBody = { ...body, idempotencyKey: 'topup-intent-legacy-001' };
+    assert.equal((await post('/phase1/api/topups', legacyBody, staffA)).response.status, 201);
+    const migrated = await post(prepare, legacyBody, staffA);
+    assert.equal(migrated.data.intent.status, 'completed');
+    assert.equal((await post(execute, { intentId: legacyBody.idempotencyKey }, staffA)).data.duplicate, true);
+    assert.equal(running.store.getAccount('demo-account').tl_balance_cents, 3000);
+  } finally { await running.close(); }
+});

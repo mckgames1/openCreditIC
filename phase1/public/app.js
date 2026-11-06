@@ -151,7 +151,8 @@ async function sendPendingTopup() {
   submit.disabled = true;
   retry.disabled = true;
   try {
-    const data = await api('/api/topups', { method: 'POST', body: JSON.stringify(pending.body) });
+    await api('/api/demo/topup-intents', { method: 'POST', body: JSON.stringify(pending.body) });
+    const data = await api('/api/demo/topup-intents/execute', { method: 'POST', body: JSON.stringify({ intentId: pending.body.idempotencyKey }) });
     PendingDemoTopups.clear(pending);
     showPendingTopup();
     showNotice(`${data.duplicate ? 'Önceki yükleme doğrulandı' : 'Demo yükleme tamamlandı'}: ${data.amountTl} TL; bakiye ${data.balanceAfterTl} TL.`);

@@ -36,6 +36,10 @@ Merkezde tamamlanmış son 25 demo yükleme için istek kimlikleriyle yetki kaps
 
 42 Linux otomatik testi geçti. Aynı sunucuya eşzamanlı HTTP isteklerinde aynı kimlik tek yükleme, iki farklı kimlik ise iki ayrı yükleme üretti; sonuçlar sentetik veridir. Chromium'da iki personelin kayıt izolasyonu, yönetici görünümü ve sayfa yenileme test edildi. Güncel değişiklik Windows, gerçek LAN ve gerçek parayla test edilmedi.
 
+Demo arayüzü, yükleme öncesinde kullanıcının niyetini SQLite ayar tablosunda kalıcı kaydeder. Aynı kullanıcının açık niyetleri başka tarayıcı profilinden listelenip aynı kimlikle tamamlanabilir. Niyetin tamamlanması bakiye ve idempotans kaydıyla atomiktir; mevcut şema değiştirilmedi. İki bağımsız süreç yarışı, işlem öncesi/sonrası süreç çökmesi, farklı profil ve yetki kontrolleri demo testlerinde denendi. Farklı niyetler ve uyumluluk için açık eski `/api/topups` yolu bağımsız yükleme yapabilir; sunucuya ulaşmayan niyet de geri getirilemez. Gerçek kullanıcı kararı/para/donanım ve LAN desteği yoktur.
+
+47 Linux otomatik testi geçti. Chromium'da istek kaybı ardından ayrı tarayıcı profilinden aynı kullanıcıyla açık niyet bulundu ve tamamlandı; ilk profildeki tekrar ikinci yükleme oluşturmadı. İki süreçle aynı niyetin yarışı, süreç durmasının iki farklı noktası ve erişimi durdurulan niyet sahibinin reddi test edildi. Bu sürüm Windows'ta test edilmedi.
+
 Yönetici aynı sayfada seçili demo kartı engelleyebilir veya engelini kaldırabilir. Tekrarlanan aynı durum isteği ikinci denetim olayı üretmez; engelli kart ödeme yapamaz. Chromium ve HTTP testleriyle doğrulandı.
 
 Ana sayfada seçili demo hesaba başka sanal UID bağlanabilir; kartlar aynı bakiyeyi paylaşır. Tekrarlanan bağlama isteği aynı sonucu döndürür, UID yeniden farklı hesaba atanmaz. Chromium'da iki kartın ortak bakiyesi ve HTTP testinde yeniden başlatma doğrulandı. Fiziksel okuyucu bağlantısı yoktur.

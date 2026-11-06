@@ -8,6 +8,7 @@
   let reportRequest = 0;
   let detailRequest = 0;
   let topupHistoryRequest = 0;
+  let intentRequest = 0;
   let detailPage = 1;
   const notice = document.getElementById('demoNotice');
   const tell = message => { notice.textContent = message; };
@@ -19,9 +20,13 @@
   }
   async function refresh(selectedUid) {
     ++topupHistoryRequest;
+    ++intentRequest;
     document.getElementById('demoRecordedTopupsRows').replaceChildren();
     document.getElementById('demoRecordedTopupsStatus').textContent = '';
     document.getElementById('demoRecordedTopups').hidden = true;
+    document.getElementById('demoOpenIntentsRows').replaceChildren();
+    document.getElementById('demoOpenIntentsStatus').textContent = '';
+    document.getElementById('demoOpenIntents').hidden = true;
     const data = await api('state');
     currentUser = data.user;
     const select = document.getElementById('demoCardChoice');
@@ -53,6 +58,7 @@
     }
     document.getElementById('demoHistory').hidden = false;
     await refreshRecordedTopups();
+    await refreshOpenIntents();
     document.getElementById('demoHistoryScope').textContent = isAdmin ? 'Son 25 demo hareketi' : 'Son 25 kendi demo hareketiniz';
     const history = document.getElementById('demoHistoryRows');
     history.replaceChildren();
@@ -160,6 +166,37 @@
     }
   }
   document.getElementById('demoRecordedTopupsRefresh').addEventListener('click', refreshRecordedTopups);
+  async function refreshOpenIntents() {
+    const request = ++intentRequest; const userId = currentUser?.id;
+    const rows = document.getElementById('demoOpenIntentsRows'); const status = document.getElementById('demoOpenIntentsStatus');
+    try {
+      const data = await api('demo/topup-intents');
+      if (request !== intentRequest || currentUser?.id !== userId) return;
+      rows.replaceChildren(); document.getElementById('demoOpenIntents').hidden = false;
+      for (const intent of data.intents) {
+        const item = document.createElement('li'); item.className = 'mb-2';
+        const label = document.createElement('span');
+        label.textContent = `${intent.createdAt} · ${intent.payload.cardUid || 'Kart yok'} · ${(intent.payload.amountCents / 100).toFixed(2)} TL · ${intent.id} `;
+        const button = document.createElement('button'); button.type = 'button'; button.className = 'btn btn-sm btn-outline-warning'; button.textContent = 'Bu demo niyetini tamamla';
+        button.addEventListener('click', async () => {
+          button.disabled = true;
+          try {
+            const result = await api('demo/topup-intents/execute', { intentId: intent.id });
+            const local = PendingDemoTopups.list().find(p => p.userId === userId && p.body.idempotencyKey === intent.id);
+            if (local) PendingDemoTopups.clear(local);
+            await refresh(intent.payload.cardUid);
+            tell(`${result.duplicate ? 'Önceki demo yükleme doğrulandı' : 'Demo niyeti tamamlandı'}: ${result.entryId}.`);
+          } catch (error) { tell(`${error.message} Sonuç belirsizse aynı niyet kimliğiyle inceleyin.`); }
+          finally { button.disabled = false; }
+        });
+        item.append(label, button); rows.append(item);
+      }
+      status.textContent = data.intents.length ? 'Yalnız giriş yapan kullanıcının merkeze kayıtlı açık niyetleri gösteriliyor.' : 'Kayıtlı açık niyet görünmüyor; diğer isteklerin sonucu bilinmiyor olabilir.';
+    } catch (error) {
+      if (request === intentRequest && currentUser?.id === userId) { rows.replaceChildren(); document.getElementById('demoOpenIntents').hidden = false; status.textContent = `Açık niyetler okunamadı: ${error.message}. Sonuç bilinmiyor.`; }
+    }
+  }
+  document.getElementById('demoOpenIntentsRefresh').addEventListener('click', refreshOpenIntents);
   document.getElementById('demoTopupLookupForm').addEventListener('submit', async event => {
     event.preventDefault();
     const button = event.currentTarget.querySelector('button');
@@ -621,7 +658,8 @@
     button.disabled = true;
     retry.disabled = true;
     try {
-      const result = await api('topups', pending.body);
+      await api('demo/topup-intents', pending.body);
+      const result = await api('demo/topup-intents/execute', { intentId: pending.body.idempotencyKey });
       PendingDemoTopups.clear(pending);
       showPending();
       await refresh(pending.body.cardUid);

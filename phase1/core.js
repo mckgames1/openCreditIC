@@ -483,11 +483,25 @@ function createStore(databasePath, options = {}) {
   function topUp({ accountId, cardUid = null, amountCents, idempotencyKey, actorUserId = null, entryType = 'topup', note = null }) {
     amountCents = positiveInteger(amountCents, 'yükleme tutarı', { max: 9_000_000_000_000_000 });
     const payload = { accountId, cardUid: cardUid ? normalizeUid(cardUid) : null, amountCents, entryType, note: note || null };
-    return withImmediateTransaction(() => {
+    const result = withImmediateTransaction(() => {
       const idempotency = ensureIdempotency(idempotencyKey, 'topup', payload);
+      const intentKey = `demo_topup_intent:${idempotency.key}`;
+      const intentRow = one('SELECT value FROM settings WHERE key = $key', { $key: intentKey });
+      const intent = intentRow ? JSON.parse(intentRow.value) : null;
+      if (intent && (intent.id !== idempotency.key || !['prepared', 'completed'].includes(intent.status))) throw new DomainError('intent_inconsistent', 'Niyet kaydı tutarsız; inceleme gerekli.', 409);
+      if (intent && (intent.actorUserId !== actorUserId || stableStringify(intent.payload) !== stableStringify(payload))) throw new DomainError('intent_conflict', 'Yükleme niyeti kullanıcı veya içerikle uyuşmuyor.', 409);
+      if (intent) {
+        const actor = one('SELECT role, locked FROM users WHERE id = $id', { $id: actorUserId });
+        if (!actor || actor.locked || !['admin', 'staff'].includes(actor.role)) throw new DomainError('intent_owner_unavailable', 'Niyet sahibi etkin değil.', 403);
+      }
+      if (intent?.status === 'completed' && !idempotency.duplicate) throw new DomainError('intent_inconsistent', 'Tamamlanmış niyetin işlem kaydı eksik; inceleme gerekli.', 409);
+      const finishIntent = response => {
+        if (intent) run('UPDATE settings SET value = $value WHERE key = $key', { $key: intentKey, $value: JSON.stringify({ ...intent, status: 'completed', response, completedAt: intent.completedAt || isoNow() }) });
+      };
       if (idempotency.duplicate) {
         const original = one('SELECT actor_user_id FROM ledger_entries WHERE id = $id', { $id: idempotency.response.entryId });
         if (!original || original.actor_user_id !== actorUserId) throw new DomainError('topup_owner_mismatch', 'Yüklemeyi başlatan kullanıcıyla giriş yapın.', 403);
+        finishIntent(idempotency.response);
         return { ...idempotency.response, duplicate: true };
       }
       const account = getAccount(accountId);
@@ -508,11 +522,59 @@ function createStore(databasePath, options = {}) {
       run('UPDATE accounts SET tl_balance_cents = $balanceAfterCents, updated_at = $updatedAt WHERE id = $accountId', {
         $balanceAfterCents: balanceAfterCents, $updatedAt: isoNow(), $accountId: accountId
       });
+      if (options.testHook) options.testHook('topup_after_balance');
       const response = { ok: true, entryId, accountId, amountCents, balanceAfterCents, entryType };
       saveIdempotency(idempotency.key, 'topup', idempotency.hash, response);
+      finishIntent(response);
       audit('balance.credited', actorUserId, { accountId, amountCents, entryType, entryId });
       return response;
     });
+    if (options.testHook) options.testHook('topup_after_commit');
+    return result;
+  }
+
+  function prepareDemoTopupIntent({ accountId, cardUid = null, amountCents, idempotencyKey, actorUserId }) {
+    amountCents = positiveInteger(amountCents, 'yükleme tutarı', { max: 9_000_000_000_000_000 });
+    const payload = { accountId, cardUid: cardUid ? normalizeUid(cardUid) : null, amountCents, entryType: 'topup', note: null };
+    return withImmediateTransaction(() => {
+      const actor = one('SELECT role, locked FROM users WHERE id = $id', { $id: actorUserId });
+      if (!actor || actor.locked || !['admin', 'staff'].includes(actor.role)) throw new DomainError('intent_owner_unavailable', 'Niyet sahibi etkin değil.', 403);
+      const key = ensureIdempotency(idempotencyKey, 'topup', payload);
+      const intentKey = `demo_topup_intent:${key.key}`;
+      const existing = one('SELECT value FROM settings WHERE key = $key', { $key: intentKey });
+      if (existing) {
+        const intent = JSON.parse(existing.value);
+        if (intent.id !== key.key || !['prepared', 'completed'].includes(intent.status)) throw new DomainError('intent_inconsistent', 'Niyet kaydı tutarsız; inceleme gerekli.', 409);
+        if (intent.actorUserId !== actorUserId) throw new DomainError('intent_owner_mismatch', 'Bu niyet başka kullanıcıya ait.', 403);
+        if (stableStringify(intent.payload) !== stableStringify(payload)) throw new DomainError('intent_conflict', 'Aynı niyet farklı içerikle kullanılamaz.', 409);
+        return { intent, duplicate: true };
+      }
+      if (key.duplicate) {
+        const original = one('SELECT actor_user_id FROM ledger_entries WHERE id = $id', { $id: key.response.entryId });
+        if (!original || original.actor_user_id !== actorUserId) throw new DomainError('topup_owner_mismatch', 'Yüklemeyi başlatan kullanıcıyla giriş yapın.', 403);
+      }
+      const account = getAccount(accountId);
+      if (payload.cardUid && getCard(payload.cardUid).account_id !== account.id) throw new DomainError('card_account_mismatch', 'Kart bu hesaba bağlı değil.');
+      const intent = { id: key.key, actorUserId, payload, status: key.duplicate ? 'completed' : 'prepared', createdAt: isoNow(), ...(key.duplicate ? { response: key.response, completedAt: isoNow() } : {}) };
+      run('INSERT INTO settings(key,value) VALUES($key,$value)', { $key: intentKey, $value: JSON.stringify(intent) });
+      audit('demo.topup_intent_prepared', actorUserId, { intentId: key.key, accountId });
+      return { intent, duplicate: false };
+    });
+  }
+
+  function listDemoTopupIntents(actorUserId) {
+    return many(`SELECT value FROM settings WHERE key LIKE 'demo_topup_intent:%' AND json_extract(value, '$.actorUserId') = $actor
+      AND json_extract(value, '$.status') = 'prepared' ORDER BY json_extract(value, '$.createdAt') DESC LIMIT 25`, { $actor: actorUserId }).map(row => JSON.parse(row.value));
+  }
+
+  function executeDemoTopupIntent(id, actorUserId) {
+    if (typeof id !== 'string' || !/^[A-Za-z0-9._:-]{8,200}$/.test(id)) throw new DomainError('invalid_idempotency_key', 'Geçersiz niyet kimliği.');
+    const row = one('SELECT value FROM settings WHERE key = $key', { $key: `demo_topup_intent:${id}` });
+    if (!row) throw new DomainError('intent_unknown', 'Niyet bulunamadı; sonuç bilinmiyor.', 404);
+    const intent = JSON.parse(row.value);
+    if (intent.id !== id || !['prepared', 'completed'].includes(intent.status)) throw new DomainError('intent_inconsistent', 'Niyet kaydı tutarsız; inceleme gerekli.', 409);
+    if (intent.actorUserId !== actorUserId) throw new DomainError('intent_owner_mismatch', 'Bu niyet başka kullanıcıya ait.', 403);
+    return topUp({ ...intent.payload, idempotencyKey: intent.id, actorUserId });
   }
 
   function correctBalance({ accountId, amountCents, reason, idempotencyKey, actorUserId }) {
@@ -877,7 +939,7 @@ function createStore(databasePath, options = {}) {
   return {
     dbPath: resolvedPath, close, getConfig, setConfig, createUser, authenticate, sessionUser, revokeSession, setStaffLocked, issueDemoPasswordReset, completeDemoPasswordReset,
     createAccount, createDemoAccountCard, attachDemoCard, getAccount, listAccounts, createCard, getCard, setCardLock, listCards,
-    createMachine, getMachine, updateMachine, setMachineTiming, setMachineLed, reportSimulatedSettings, listMachines, topUp, correctBalance, pay, demoFreePlay, getPulseCommand, simulatePulse,
+    createMachine, getMachine, updateMachine, setMachineTiming, setMachineLed, reportSimulatedSettings, listMachines, topUp, prepareDemoTopupIntent, listDemoTopupIntents, executeDemoTopupIntent, correctBalance, pay, demoFreePlay, getPulseCommand, simulatePulse,
     retryPulse, reviewPulse, listPulseReviews, getIdempotency, lookupDemoTopup, recentRecordedDemoTopups, listLedger, detailedLedger, listPulses, summary, periodReport, getUserCount: () => one('SELECT COUNT(*) AS count FROM users').count,
     getUsers: () => many('SELECT id, username, role, locked, created_at FROM users ORDER BY created_at'),
     getDemoState: getDeviceState,

@@ -156,7 +156,7 @@ function createStore(databasePath, options = {}) {
   }
 
   function getConfig() {
-    const rows = many('SELECT key, value FROM settings ORDER BY key');
+    const rows = many("SELECT key, value FROM settings WHERE key IN ('card_removed_ms', 'payment_cooldown_ms', 'demo_mode') ORDER BY key");
     const config = {};
     for (const row of rows) {
       config[row.key] = /^\d+$/.test(row.value) ? Number(row.value) : row.value === 'true' ? true : row.value === 'false' ? false : row.value;
@@ -234,9 +234,51 @@ function createStore(databasePath, options = {}) {
       if (user.role !== 'staff') throw new DomainError('staff_only', 'Yalnız demo personel hesapları değiştirilebilir.', 400);
       if (Boolean(user.locked) === locked) return publicUser(user);
       run('UPDATE users SET locked = $locked WHERE id = $id', { $locked: locked ? 1 : 0, $id: user.id });
-      if (locked) run('UPDATE sessions SET expires_at = $now WHERE user_id = $id AND expires_at > $now', { $id: user.id, $now: isoNow() });
+      if (locked) {
+        run('UPDATE sessions SET expires_at = $now WHERE user_id = $id AND expires_at > $now', { $id: user.id, $now: isoNow() });
+        const reset = one('SELECT value FROM settings WHERE key = $key', { $key: `demo_password_reset:${user.id}` });
+        if (reset) run('UPDATE settings SET value = $value WHERE key = $key', { $key: `demo_password_reset:${user.id}`, $value: JSON.stringify({ ...JSON.parse(reset.value), used: true }) });
+      }
       audit(locked ? 'staff.disabled' : 'staff.enabled', actorUserId, { userId: user.id });
       return publicUser(one('SELECT * FROM users WHERE id = $id', { $id: user.id }));
+    });
+  }
+
+  function issueDemoPasswordReset(userId, adminId, adminPassword) {
+    return withImmediateTransaction(() => {
+      const admin = one('SELECT * FROM users WHERE id = $id', { $id: adminId });
+      if (!admin || admin.locked || admin.role !== 'admin' || !verifyPassword(String(adminPassword || ''), admin.password_hash)) throw new DomainError('reauth_failed', 'Yönetici doğrulaması başarısız.', 401);
+      const user = one('SELECT * FROM users WHERE id = $id', { $id: userId });
+      if (!user || user.role !== 'staff' || user.locked) throw new DomainError('staff_unavailable', 'Etkin demo personel hesabı bulunamadı.', 404);
+      const token = crypto.randomBytes(32).toString('hex');
+      const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+      const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+      run('INSERT INTO settings(key,value) VALUES($key,$value) ON CONFLICT(key) DO UPDATE SET value=excluded.value', {
+        $key: `demo_password_reset:${user.id}`, $value: JSON.stringify({ tokenHash, expiresAt, used: false })
+      });
+      audit('staff.demo_reset_issued', adminId, { userId: user.id, expiresAt });
+      return { token, expiresAt, username: user.username };
+    });
+  }
+
+  function completeDemoPasswordReset(username, token, newPassword) {
+    const password = typeof newPassword === 'string' ? newPassword : '';
+    if (password.length < 10 || password.length > 256) throw new DomainError('weak_password', 'Yeni parola 10–256 karakter olmalıdır.');
+    if (typeof token !== 'string' || !/^[a-f0-9]{64}$/.test(token)) throw new DomainError('invalid_reset', 'Kod geçersiz, kullanılmış veya süresi dolmuş.', 400);
+    return withImmediateTransaction(() => {
+      const user = one('SELECT * FROM users WHERE username = $username', { $username: String(username || '').trim().toLowerCase() });
+      const row = user && one('SELECT value FROM settings WHERE key = $key', { $key: `demo_password_reset:${user.id}` });
+      const reset = row ? JSON.parse(row.value) : null;
+      const actual = crypto.createHash('sha256').update(token).digest();
+      const expected = Buffer.from(reset?.tokenHash || '', 'hex');
+      if (!user || user.role !== 'staff' || user.locked || !reset || reset.used || reset.expiresAt <= isoNow() || expected.length !== actual.length || !crypto.timingSafeEqual(expected, actual)) {
+        throw new DomainError('invalid_reset', 'Kod geçersiz, kullanılmış veya süresi dolmuş.', 400);
+      }
+      run('UPDATE users SET password_hash = $hash WHERE id = $id', { $hash: hashPassword(password), $id: user.id });
+      run('UPDATE settings SET value = $value WHERE key = $key', { $key: `demo_password_reset:${user.id}`, $value: JSON.stringify({ ...reset, used: true }) });
+      run('UPDATE sessions SET expires_at = $now WHERE user_id = $id AND expires_at > $now', { $id: user.id, $now: isoNow() });
+      audit('staff.demo_password_reset', user.id, { userId: user.id });
+      return { ok: true };
     });
   }
 
@@ -644,7 +686,7 @@ function createStore(databasePath, options = {}) {
   function close() { db.close(); }
 
   return {
-    dbPath: resolvedPath, close, getConfig, setConfig, createUser, authenticate, sessionUser, revokeSession, setStaffLocked,
+    dbPath: resolvedPath, close, getConfig, setConfig, createUser, authenticate, sessionUser, revokeSession, setStaffLocked, issueDemoPasswordReset, completeDemoPasswordReset,
     createAccount, createDemoAccountCard, attachDemoCard, getAccount, listAccounts, createCard, getCard, setCardLock, listCards,
     createMachine, getMachine, updateMachine, setMachineTiming, setMachineLed, reportSimulatedSettings, listMachines, topUp, correctBalance, pay, getPulseCommand, simulatePulse,
     retryPulse, reviewPulse, listPulseReviews, getIdempotency, listLedger, listPulses, summary, getUserCount: () => one('SELECT COUNT(*) AS count FROM users').count,

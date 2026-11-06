@@ -110,6 +110,11 @@ function createApp({ store, standalone = true }) {
     res.json({ ok: true, user: login.user, expiresAt: login.expiresAt });
   }));
 
+  app.post('/api/auth/demo-password-reset', handle(async (req, res) => {
+    res.set('Cache-Control', 'no-store');
+    res.json(store.completeDemoPasswordReset(req.body.username, req.body.token, req.body.newPassword));
+  }));
+
   app.post('/api/auth/logout', handle(async (req, res) => {
     const cookies = parseCookies(req.headers.cookie);
     const token = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim() || cookies.phase1_session;
@@ -146,6 +151,11 @@ function createApp({ store, standalone = true }) {
   app.post('/api/admin/staff/:id/lock', requireAuth, requireRole('admin'), handle(async (req, res) => {
     if (typeof req.body.locked !== 'boolean') throw new DomainError('invalid_lock_state', 'Hesap durumu true veya false olmalıdır.');
     res.json({ ok: true, user: store.setStaffLocked(req.params.id, req.body.locked, req.user.id) });
+  }));
+
+  app.post('/api/admin/staff/:id/demo-password-reset', requireAuth, requireRole('admin'), handle(async (req, res) => {
+    res.set('Cache-Control', 'no-store');
+    res.json({ ok: true, ...store.issueDemoPasswordReset(req.params.id, req.user.id, req.body.adminPassword) });
   }));
 
   app.post('/api/accounts', requireAuth, requireRole('admin', 'staff'), handle(async (req, res) => {

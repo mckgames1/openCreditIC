@@ -57,6 +57,19 @@ body.bg-dark.text-white
                     label(for='demoPassword') Parola
                     input#demoPassword.form-control(type='password' required minlength='10' autocomplete='current-password')
                     button#demoLoginButton.btn.btn-primary.mt-2(type='submit') Giriş yap / ilk yönetici oluştur
+                details.mt-3.text-left
+                    summary Demo personel parolasını yenile
+                    p.small Yöneticiden alınan tek kullanımlık kodu kullanın. Gerçek hesaplar için değildir.
+                    form#demoResetForm
+                        label(for='demoResetUsername') Personel kullanıcı adı
+                        input#demoResetUsername.form-control(required autocomplete='username')
+                        label(for='demoResetToken') Tek kullanımlık kod
+                        input#demoResetToken.form-control(type='password' required minlength='64' maxlength='64' autocomplete='off')
+                        label(for='demoResetPassword') Yeni parola (10–256 karakter)
+                        input#demoResetPassword.form-control(type='password' required minlength='10' maxlength='256' autocomplete='new-password')
+                        label(for='demoResetConfirm') Yeni parola tekrar
+                        input#demoResetConfirm.form-control(type='password' required minlength='10' maxlength='256' autocomplete='new-password')
+                        button.btn.btn-primary.mt-2(type='submit') Demo parolayı yenile
                 p#demoAccount.mt-3.mb-0 Giriş bekleniyor.
                 label(for='demoCardChoice') Sanal kart seçimi
                 select#demoCardChoice.form-control
@@ -97,6 +110,15 @@ body.bg-dark.text-white
                 h2.h5 Demo personel hesapları
                 p.small Erişimi durdurulan personelin mevcut oturumu sona erer. Hesap ve işlem geçmişi korunur.
                 ul#demoStaffList.list-unstyled
+                h2.h5 Demo parola yenileme kodu oluştur
+                p.small Yalnız etkin demo personel için; kod 10 dakika geçerlidir ve bir kez kullanılır. Kodu personele yerel olarak güvenli biçimde iletin.
+                form#demoResetIssueForm
+                    label(for='demoResetStaff') Personel
+                    select#demoResetStaff.form-control(required)
+                    label(for='demoResetAdminPassword') Yönetici parolanız
+                    input#demoResetAdminPassword.form-control(type='password' required autocomplete='current-password')
+                    button.btn.btn-warning.mt-2(type='submit') Tek kullanımlık kod oluştur
+                p#demoResetIssueResult.mt-2(role='status')
                 h2.h5 Demo işlem özeti
                 p#demoTotals
                 p.small Yükleme, harcama ve net düzeltme ayrıdır; toplam bakiye tüm demo hesaplarındadır.

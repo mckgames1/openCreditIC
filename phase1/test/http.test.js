@@ -479,3 +479,63 @@ test('per-device demo LED settings and simulated version results persist indepen
     assert.equal(currentB.led_brightness, 200);
   } finally { await running.close(); }
 });
+
+test('demo staff password reset requires admin reauthentication, expires and is single-use', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencredit-reset-'));
+  const databasePath = path.join(dir, 'demo.sqlite');
+  let running = startServer({ host: '127.0.0.1', port: 0, databasePath });
+  await new Promise(resolve => running.server.once('listening', resolve));
+  let base = `http://127.0.0.1:${running.server.address().port}`;
+  const post = (url, body, cookie) => jsonRequest(base, url, { method: 'POST', body: JSON.stringify(body) }, cookie);
+  try {
+    const admin = (await post('/phase1/api/setup', { username: 'admin', password: 'correct horse battery staple' })).cookie;
+    const created = await post('/phase1/api/admin/users', { username: 'staff', password: 'staff password 1', role: 'staff' }, admin);
+    const id = created.data.user.id;
+    const staff = (await post('/phase1/api/auth/login', { username: 'staff', password: 'staff password 1' })).cookie;
+    const issue = `/phase1/api/admin/staff/${id}/demo-password-reset`;
+    assert.equal((await post(issue, { adminPassword: 'wrong password' }, admin)).response.status, 401);
+    assert.equal((await post(issue, { adminPassword: 'correct horse battery staple' }, staff)).response.status, 403);
+    assert.equal((await post(issue, { adminPassword: 'correct horse battery staple' })).response.status, 401);
+    const first = await post(issue, { adminPassword: 'correct horse battery staple' }, admin);
+    assert.equal(first.response.headers.get('cache-control'), 'no-store');
+    assert.match(first.data.token, /^[a-f0-9]{64}$/);
+    const { DatabaseSync } = require('node:sqlite');
+    const db = new DatabaseSync(databasePath);
+    const key = `demo_password_reset:${id}`;
+    const stored = JSON.parse(db.prepare('SELECT value FROM settings WHERE key = ?').get(key).value);
+    assert.notEqual(stored.tokenHash, first.data.token);
+    stored.expiresAt = '2000-01-01T00:00:00.000Z';
+    db.prepare('UPDATE settings SET value = ? WHERE key = ?').run(JSON.stringify(stored), key);
+    db.close();
+    const complete = '/phase1/api/auth/demo-password-reset';
+    assert.equal((await post(complete, { username: 'staff', token: first.data.token, newPassword: 'new password 123' })).response.status, 400);
+    const issued = await post(issue, { adminPassword: 'correct horse battery staple' }, admin);
+    const token = issued.data.token;
+    assert.equal((await post(complete, { username: 'staff', token: '0'.repeat(64), newPassword: 'new password 123' })).response.status, 400);
+    assert.equal((await post(complete, { username: 'staff', token, newPassword: 'short' })).response.status, 400);
+    const response = await post(complete, { username: 'staff', token, newPassword: 'new password 123' });
+    assert.equal(response.response.status, 200);
+    assert.equal((await post(complete, { username: 'staff', token, newPassword: 'another password 123' })).response.status, 400);
+    assert.equal((await jsonRequest(base, '/phase1/api/state', {}, staff)).response.status, 401);
+    assert.equal((await post('/phase1/api/auth/login', { username: 'staff', password: 'staff password 1' })).response.status, 401);
+    assert.equal((await post('/phase1/api/auth/login', { username: 'staff', password: 'new password 123' })).response.status, 200);
+    const state = await jsonRequest(base, '/phase1/api/state', {}, admin);
+    assert.equal(JSON.stringify(state.data).includes(token), false);
+    assert.equal(JSON.stringify(state.data).includes('tokenHash'), false);
+    await running.close();
+    running = startServer({ host: '127.0.0.1', port: 0, databasePath });
+    await new Promise(resolve => running.server.once('listening', resolve));
+    base = `http://127.0.0.1:${running.server.address().port}`;
+    assert.equal((await post(complete, { username: 'staff', token, newPassword: 'another password 123' })).response.status, 400);
+    assert.equal((await post('/phase1/api/auth/login', { username: 'staff', password: 'new password 123' })).response.status, 200);
+    const pending = await post(issue, { adminPassword: 'correct horse battery staple' }, admin);
+    assert.equal((await post(`/phase1/api/admin/staff/${id}/lock`, { locked: true }, admin)).response.status, 200);
+    assert.equal((await post(`/phase1/api/admin/staff/${id}/lock`, { locked: false }, admin)).response.status, 200);
+    assert.equal((await post(complete, { username: 'staff', token: pending.data.token, newPassword: 'another password 123' })).response.status, 400);
+    const inspection = new DatabaseSync(databasePath, { readOnly: true });
+    const audits = inspection.prepare('SELECT data_json FROM audit_log').all().map(entry => entry.data_json).join(' ');
+    assert.equal(audits.includes(token), false);
+    assert.equal(audits.includes('new password 123'), false);
+    inspection.close();
+  } finally { await running.close(); }
+});

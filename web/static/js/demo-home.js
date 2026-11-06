@@ -33,6 +33,7 @@
     showPending();
     showPendingCardLink();
     const isAdmin = data.user.role === 'admin';
+    if (!isAdmin) document.getElementById('demoResetIssueResult').textContent = '';
     document.getElementById('demoHistory').hidden = false;
     document.getElementById('demoHistoryScope').textContent = isAdmin ? 'Son 25 demo hareketi' : 'Son 25 kendi demo hareketiniz';
     const history = document.getElementById('demoHistoryRows');
@@ -52,7 +53,16 @@
     if (isAdmin) {
       const staffList = document.getElementById('demoStaffList');
       staffList.replaceChildren();
+      const resetSelect = document.getElementById('demoResetStaff');
+      const previousStaff = resetSelect.value;
+      resetSelect.replaceChildren();
       for (const user of data.staff) {
+        if (!user.locked) {
+          const option = document.createElement('option');
+          option.value = user.id;
+          option.textContent = user.username;
+          resetSelect.append(option);
+        }
         const row = document.createElement('li');
         row.className = 'mb-2';
         const label = document.createElement('span');
@@ -73,6 +83,7 @@
         row.append(label, button);
         staffList.append(row);
       }
+      if ([...resetSelect.options].some(option => option.value === previousStaff)) resetSelect.value = previousStaff;
       document.getElementById('demoCardStatus').textContent = `${card.uid}: ${card.locked ? 'Engelli' : 'Aktif'}`;
       document.getElementById('demoCardLock').textContent = card.locked ? 'Kart engelini kaldır' : 'Kartı engelle';
       const tl = value => (Number(value) / 100).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' TL';
@@ -269,6 +280,35 @@
       form.reset();
       await refresh();
       tell(`Demo personel hesabı oluşturuldu: ${result.user.username}.`);
+    } catch (error) { tell(error.message); }
+    finally { button.disabled = false; }
+  });
+  document.getElementById('demoResetIssueForm').addEventListener('submit', async event => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const button = form.querySelector('button');
+    if (button.disabled) return;
+    button.disabled = true;
+    const output = document.getElementById('demoResetIssueResult');
+    output.textContent = '';
+    try {
+      const result = await api('admin/staff/' + encodeURIComponent(document.getElementById('demoResetStaff').value) + '/demo-password-reset', { adminPassword: document.getElementById('demoResetAdminPassword').value });
+      document.getElementById('demoResetAdminPassword').value = '';
+      output.textContent = `${result.username} için tek kullanımlık kod: ${result.token} — Son geçerlilik (UTC): ${result.expiresAt}. Personel ayrı, özel bir tarayıcı oturumunda kullanmalıdır.`;
+    } catch (error) { document.getElementById('demoResetAdminPassword').value = ''; tell(error.message); }
+    finally { button.disabled = false; }
+  });
+  document.getElementById('demoResetForm').addEventListener('submit', async event => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const button = form.querySelector('button');
+    if (button.disabled) return;
+    if (document.getElementById('demoResetPassword').value !== document.getElementById('demoResetConfirm').value) return tell('Yeni parolalar eşleşmiyor.');
+    button.disabled = true;
+    try {
+      await api('auth/demo-password-reset', { username: document.getElementById('demoResetUsername').value, token: document.getElementById('demoResetToken').value, newPassword: document.getElementById('demoResetPassword').value });
+      form.reset();
+      tell('Demo personel parolası yenilendi; yeni parolayla giriş yapın.');
     } catch (error) { tell(error.message); }
     finally { button.disabled = false; }
   });

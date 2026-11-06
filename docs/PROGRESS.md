@@ -16,7 +16,7 @@ Mevcut ana sayfada yönetici için makine adı, fiyatı, aktif durumu ve sanal p
 
 Personel ana sayfada demo yükleme yapar ve son 25 kendi hareketini görür. İşlem kimliği ve denetim kaydı saklanır; personel genel özet ve diğer komut geçmişini alamaz. Chromium'da personel girişi, yükleme, geçmiş ve yönetici panelinin gizlenmesi doğrulandı. Gerçek kasa okuyucusu ve oturum eşleme Faz 3'tedir.
 
-Yönetici mevcut ana sayfadan demo personel hesabı oluşturabilir ve erişimini durdurup açabilir. Durdurma mevcut oturumları sonlandırır; yeniden açılan hesap eski oturumlarla kullanılamaz. Chromium'da oluşturma, durdurma/açma, personel girişi ve demo yükleme doğrulandı. Personel parola sıfırlama ekranı henüz yoktur; bu değişiklik şema geçişi gerektirmez.
+Yönetici mevcut ana sayfadan demo personel hesabı oluşturabilir ve erişimini durdurup açabilir. Durdurma mevcut oturumları sonlandırır; yeniden açılan hesap eski oturumlarla kullanılamaz. Yönetici kendi parolasını yeniden girerek 10 dakika geçerli tek kullanımlık demo yenileme kodu oluşturabilir; personel kendi yeni parolasını belirlediğinde eski oturumları sona erer. Kodun yalnız özeti saklanır, uygulama kodu dışarı göndermez. Bu değişiklik şema geçişi gerektirmez ve yalnız yerel demo içindir.
 
 Yönetici aynı sayfada seçili demo kartı engelleyebilir veya engelini kaldırabilir. Tekrarlanan aynı durum isteği ikinci denetim olayı üretmez; engelli kart ödeme yapamaz. Chromium ve HTTP testleriyle doğrulandı.
 

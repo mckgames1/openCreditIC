@@ -270,6 +270,11 @@ function createApp({ store, standalone = true }) {
     res.json({ ok: true, ...store.lookupDemoTopup(req.body.idempotencyKey) });
   }));
 
+  app.get('/api/demo/topups/recorded', requireAuth, requireRole('admin', 'staff'), handle(async (req, res) => {
+    res.set('Cache-Control', 'no-store');
+    res.json({ ok: true, records: store.recentRecordedDemoTopups(req.user.role === 'admin' ? null : req.user.id) });
+  }));
+
   app.post('/api/admin/corrections', requireAuth, requireRole('admin'), handle(async (req, res) => {
     if (!['add', 'subtract'].includes(req.body.direction)) throw new DomainError('invalid_direction', 'Düzeltme yönü geçersiz.');
     const amount = parseMoneyCents(req.body.amountTl, 'düzeltme');

@@ -97,6 +97,22 @@ body.bg-dark.text-white
                                 th İşlem sonrası bakiye
                                 th İşlem kimliği
                         tbody#demoHistoryRows
+            section#demoRecordedTopups.card.text-dark.p-3.mt-3.text-left(hidden)
+                h2.h5 Merkezde kaydedilmiş demo yüklemeler
+                p.small Son 25 kayıt gösterilir; personel yalnız kendi kayıtlarını görür. Bir isteğin listede olmaması başarısız veya hiç ulaşmamış olduğunu kanıtlamaz. Tutar ve saate bakarak yeni kimlikle yeniden yükleme yapmayın.
+                button#demoRecordedTopupsRefresh.btn.btn-outline-secondary.mb-2(type='button') Kayıtları yenile
+                p#demoRecordedTopupsStatus(role='status')
+                div.table-responsive
+                    table.table.table-sm.text-dark
+                        thead
+                            tr
+                                th Zaman (UTC)
+                                th Kullanıcı
+                                th Sanal kart
+                                th Demo tutarı
+                                th İstek kimliği
+                                th Merkez durumu
+                        tbody#demoRecordedTopupsRows
             section#demoAdmin.card.text-dark.p-3.mt-3.text-left(hidden)
                 h2.h5 Belirsiz demo yüklemesini sorgula
                 p.small Bekleyen ekrandaki istek kimliğini girin. Yalnız merkezde kaydedilmiş yükleme bulunabilir; kayıt yoksa istek ulaşmamış, sürüyor veya sonucu bilinmiyor olabilir. Sorgu yükleme, iptal ya da iade yapmaz.

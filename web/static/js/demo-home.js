@@ -7,6 +7,7 @@
   let machines = [];
   let reportRequest = 0;
   let detailRequest = 0;
+  let topupHistoryRequest = 0;
   let detailPage = 1;
   const notice = document.getElementById('demoNotice');
   const tell = message => { notice.textContent = message; };
@@ -17,6 +18,10 @@
     return data;
   }
   async function refresh(selectedUid) {
+    ++topupHistoryRequest;
+    document.getElementById('demoRecordedTopupsRows').replaceChildren();
+    document.getElementById('demoRecordedTopupsStatus').textContent = '';
+    document.getElementById('demoRecordedTopups').hidden = true;
     const data = await api('state');
     currentUser = data.user;
     const select = document.getElementById('demoCardChoice');
@@ -47,6 +52,7 @@
       document.getElementById('demoFreePlayRetry').hidden = true;
     }
     document.getElementById('demoHistory').hidden = false;
+    await refreshRecordedTopups();
     document.getElementById('demoHistoryScope').textContent = isAdmin ? 'Son 25 demo hareketi' : 'Son 25 kendi demo hareketiniz';
     const history = document.getElementById('demoHistoryRows');
     history.replaceChildren();
@@ -134,6 +140,26 @@
       await refreshDetails();
     }
   }
+  async function refreshRecordedTopups() {
+    const request = ++topupHistoryRequest; const user = currentUser?.id;
+    const rows = document.getElementById('demoRecordedTopupsRows');
+    const status = document.getElementById('demoRecordedTopupsStatus');
+    try {
+      const data = await api('demo/topups/recorded');
+      if (request !== topupHistoryRequest || currentUser?.id !== user) return;
+      rows.replaceChildren(); document.getElementById('demoRecordedTopups').hidden = false;
+      for (const record of data.records) {
+        const entry = record.entry; const row = document.createElement('tr');
+        const values = [entry?.created_at || '—', entry?.actor || '—', entry?.card_uid || '—', entry ? (entry.amount_cents / 100).toFixed(2) + ' TL' : '—', record.request_key, record.status === 'recorded' ? 'Demo kaydı doğrulandı' : 'Tutarsız — inceleme gerekli'];
+        for (const value of values) { const cell = document.createElement('td'); cell.textContent = value; row.append(cell); }
+        rows.append(row);
+      }
+      status.textContent = data.records.length ? 'Yalnızca sunucuda bulunan kayıtlar gösteriliyor.' : 'Gösterilecek doğrulanmış demo kaydı yok; eksik isteklerin sonucu bilinmiyor.';
+    } catch (error) {
+      if (request === topupHistoryRequest && currentUser?.id === user) { rows.replaceChildren(); document.getElementById('demoRecordedTopups').hidden = false; status.textContent = `Merkez kayıtları okunamadı: ${error.message}. Sonuç bilinmiyor.`; }
+    }
+  }
+  document.getElementById('demoRecordedTopupsRefresh').addEventListener('click', refreshRecordedTopups);
   document.getElementById('demoTopupLookupForm').addEventListener('submit', async event => {
     event.preventDefault();
     const button = event.currentTarget.querySelector('button');

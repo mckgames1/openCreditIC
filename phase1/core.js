@@ -680,6 +680,15 @@ function createStore(databasePath, options = {}) {
     return { status: 'recorded', entry: { id: entry.id, created_at: entry.created_at, account_id: entry.account_id, card_uid: entry.card_uid, amount_cents: entry.amount_cents, balance_after_cents: entry.balance_after_cents, actor: entry.actor } };
   }
 
+  function recentRecordedDemoTopups(actorUserId = null) {
+    const scope = actorUserId ? 'AND l.actor_user_id = $actor' : '';
+    const params = actorUserId ? { $actor: actorUserId } : {};
+    const rows = many(`SELECT i.idempotency_key AS request_key FROM ledger_entries l
+      JOIN idempotency_keys i ON l.idempotency_key = i.idempotency_key || ':ledger' AND i.operation = 'topup'
+      WHERE l.entry_type = 'topup' ${scope} ORDER BY l.created_at DESC, l.id DESC LIMIT 25`, params);
+    return rows.map(row => ({ request_key: row.request_key, ...lookupDemoTopup(row.request_key) }));
+  }
+
   function simulatePulse(commandId, outcome, actorUserId = null) {
     if (!['succeeded', 'response_lost', 'connection_lost', 'failed'].includes(outcome)) {
       throw new DomainError('invalid_pulse_outcome', 'Geçersiz simülasyon sonucu.');
@@ -869,7 +878,7 @@ function createStore(databasePath, options = {}) {
     dbPath: resolvedPath, close, getConfig, setConfig, createUser, authenticate, sessionUser, revokeSession, setStaffLocked, issueDemoPasswordReset, completeDemoPasswordReset,
     createAccount, createDemoAccountCard, attachDemoCard, getAccount, listAccounts, createCard, getCard, setCardLock, listCards,
     createMachine, getMachine, updateMachine, setMachineTiming, setMachineLed, reportSimulatedSettings, listMachines, topUp, correctBalance, pay, demoFreePlay, getPulseCommand, simulatePulse,
-    retryPulse, reviewPulse, listPulseReviews, getIdempotency, lookupDemoTopup, listLedger, detailedLedger, listPulses, summary, periodReport, getUserCount: () => one('SELECT COUNT(*) AS count FROM users').count,
+    retryPulse, reviewPulse, listPulseReviews, getIdempotency, lookupDemoTopup, recentRecordedDemoTopups, listLedger, detailedLedger, listPulses, summary, periodReport, getUserCount: () => one('SELECT COUNT(*) AS count FROM users').count,
     getUsers: () => many('SELECT id, username, role, locked, created_at FROM users ORDER BY created_at'),
     getDemoState: getDeviceState,
     setDemoState: setDeviceState,

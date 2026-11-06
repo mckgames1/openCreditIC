@@ -29,6 +29,7 @@ Kaynak: `MCK_CARD_CODEX_BASLANGIC(1).txt`, bölüm 10. Durum 2026-11-06; yalnız
 - Cihaz fiyat/pulse, bekleme ve demo LED ayarları sürümlü; işlem ve başlamış bekleme değerleri korunuyor. Uygulama durumu yalnız simülatör raporudur; gerçek cihaz ayar teslimi ve doğrulaması yoktur.
 - Yükleme tekrarı API'de idempotent; ana Pug ve simülatör ekranları aynı tarayıcı profilinde tarayıcı/sekme kapanışı sonrası bekleyen isteği saklayıp aynı kullanıcıyla doğrular. Profil verisi silinirse, gizli sekme kapanırsa veya başka cihaz kullanılırsa bu istemci kaydı korunmaz; sunucu tabanlı bekleyen istek kuyruğu yoktur. Farklı sekmelerde eşzamanlı bağımsız yeni yüklemeleri tek işlem saymaz.
 - Yönetici, bilinen istek kimliğiyle merkezde tamamlanmış demo yüklemeyi salt okunur sorgulayabilir. Kayıt bulunmaması veya tutarsızlık belirsizdir; istek kimliği kaybolursa bu sorgu onu geri getirmez ve otomatik iptal/iade yapmaz.
+- Ana ekranda son 25 sunucuda kaydedilmiş demo yükleme istek kimliğiyle görülebilir; personel yalnız kendi kayıtlarını, yönetici tümünü görür. Sunucuya gelmemiş veya tamamlanmamış istekler listelenemez; farklı kimlikle eşzamanlı istekleri tek işlem sayma veya engelleme yoktur.
 - Simülatör kart kaldırma ve bekleme mantığı var; kısa RF kopması fiziksel okuyucuda test edilmedi.
 - İşlem türleri veri modelinde ayrılabilse de iade ve bonus işlemleri ve raporları uçtan uca tamamlanmadı; ücretsiz oyun yalnız gerekçeli sıfır ücretli demo ile sınırlıdır.
 - Yerel varlıklar mevcut; gerçek internet kesilerek tam çevrimdışı kabul testi yapılmadı.

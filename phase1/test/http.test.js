@@ -907,3 +907,44 @@ test('demo free play rolls back ledger if simulated command insert fails', async
     assert.equal(running.store.getDemoState('DEMO-MACHINE').payment_latched, 0);
   } finally { await running.close(); }
 });
+
+test('recorded topup review respects actor and exposes the different-key concurrency risk', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencredit-recorded-review-'));
+  const databasePath = path.join(dir, 'demo.sqlite');
+  let running = startServer({ host: '127.0.0.1', port: 0, databasePath });
+  await new Promise(resolve => running.server.once('listening', resolve));
+  let base = `http://127.0.0.1:${running.server.address().port}`;
+  const post = (url, body, cookie) => jsonRequest(base, url, { method: 'POST', body: JSON.stringify(body) }, cookie);
+  try {
+    const admin = (await post('/phase1/api/setup', { username: 'admin', password: 'correct horse battery staple' })).cookie;
+    for (const username of ['staff1', 'staff2']) await post('/phase1/api/admin/users', { username, password: 'staff password 1', role: 'staff' }, admin);
+    const staff1 = (await post('/phase1/api/auth/login', { username: 'staff1', password: 'staff password 1' })).cookie;
+    const staff2 = (await post('/phase1/api/auth/login', { username: 'staff2', password: 'staff password 1' })).cookie;
+    const body = { accountId: 'demo-account', cardUid: 'DEMO-0001', amountTl: '10', idempotencyKey: 'review-same-key-001' };
+    const same = await Promise.all([post('/phase1/api/topups', body, staff1), post('/phase1/api/topups', body, staff1)]);
+    assert.deepEqual(same.map(result => result.response.status).sort(), [200, 201]);
+    assert.equal(running.store.getAccount('demo-account').tl_balance_cents, 1000);
+    const different = await Promise.all(['review-different-001', 'review-different-002'].map(key => post('/phase1/api/topups', { ...body, idempotencyKey: key }, staff1)));
+    assert.deepEqual(different.map(result => result.response.status), [201, 201]);
+    assert.equal(running.store.getAccount('demo-account').tl_balance_cents, 3000);
+    await post('/phase1/api/topups', { ...body, idempotencyKey: 'review-other-user-001' }, staff2);
+    const url = '/phase1/api/demo/topups/recorded';
+    assert.equal((await jsonRequest(base, url)).response.status, 401);
+    const own = await jsonRequest(base, url, {}, staff1);
+    assert.equal(own.response.headers.get('cache-control'), 'no-store');
+    assert.equal(own.data.records.length, 3);
+    assert.ok(own.data.records.every(record => record.entry.actor === 'staff1'));
+    assert.ok(!own.data.records.some(record => record.request_key === 'review-other-user-001'));
+    assert.equal((await jsonRequest(base, url, {}, staff2)).data.records.length, 1);
+    assert.equal((await jsonRequest(base, url, {}, admin)).data.records.length, 4);
+    const before = running.store.summary().ledger_count;
+    await jsonRequest(base, url, {}, staff1);
+    assert.equal(running.store.summary().ledger_count, before);
+    await running.close();
+    running = startServer({ host: '127.0.0.1', port: 0, databasePath });
+    await new Promise(resolve => running.server.once('listening', resolve));
+    base = `http://127.0.0.1:${running.server.address().port}`;
+    assert.equal((await jsonRequest(base, url, {}, staff1)).data.records.length, 3);
+    assert.equal(running.store.getAccount('demo-account').tl_balance_cents, 4000);
+  } finally { await running.close(); }
+});

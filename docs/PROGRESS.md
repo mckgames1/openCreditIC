@@ -32,6 +32,10 @@ Tanımsız kartın ücret ve komut üretmemesi, tutulmuş kartın gerçek beklem
 
 Yönetici, gerekçe ve hazır/tanımlı/engelsiz sanal kartla sıfır tutarlı ücretsiz demo oyunu oluşturabilir. Bakiye değişmez; işlem kaydı, tek bekleyen sanal komut ve ayrı sayı raporu atomik tutulur. Yanıt kaybında aynı sekmedeki tekrar aynı komutu döndürür; sekme kapanışında bekleyen kimlik korunmaz. Hata enjeksiyonunda işlem/komut geri alındı. Linux'ta 41 otomatik test ile Chromium'da ücretsiz oyun, kayıp yanıt ve yönetici/personel akışları geçti. `0c8a04a` için Windows'ta 38/38 ve 200/50/150 akışı bildirildi; bu sonraki değişiklik Windows'ta doğrulanmadı. Gerçek ücretsiz oyun yetkileri ve iş kuralları kullanıcı kararına açık, gerçek cihaz/para yok.
 
+Merkezde tamamlanmış son 25 demo yükleme için istek kimlikleriyle yetki kapsamlı salt okunur liste eklendi; personel kendi işlemleriyle sınırlıdır. Sunucuya ulaşmamış veya henüz kaydedilmemiş istekler listelenemez, yokluk başarısızlık kanıtı değildir. Eşzamanlı farklı kimliklerin ayrı yükleme olarak yürütülmesi riski sürmektedir. Server taraflı niyet ve çözümleme tasarımı `docs/DEMO_YUKLEME_UZLASMA.md` içinde öneridir, uygulanmış değildir.
+
+42 Linux otomatik testi geçti. Aynı sunucuya eşzamanlı HTTP isteklerinde aynı kimlik tek yükleme, iki farklı kimlik ise iki ayrı yükleme üretti; sonuçlar sentetik veridir. Chromium'da iki personelin kayıt izolasyonu, yönetici görünümü ve sayfa yenileme test edildi. Güncel değişiklik Windows, gerçek LAN ve gerçek parayla test edilmedi.
+
 Yönetici aynı sayfada seçili demo kartı engelleyebilir veya engelini kaldırabilir. Tekrarlanan aynı durum isteği ikinci denetim olayı üretmez; engelli kart ödeme yapamaz. Chromium ve HTTP testleriyle doğrulandı.
 
 Ana sayfada seçili demo hesaba başka sanal UID bağlanabilir; kartlar aynı bakiyeyi paylaşır. Tekrarlanan bağlama isteği aynı sonucu döndürür, UID yeniden farklı hesaba atanmaz. Chromium'da iki kartın ortak bakiyesi ve HTTP testinde yeniden başlatma doğrulandı. Fiziksel okuyucu bağlantısı yoktur.

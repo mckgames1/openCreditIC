@@ -69,6 +69,7 @@ body.bg-dark.text-white(class=(typeof demoMode !== 'undefined' && demoMode ? 'de
                     h2 İşletme paneli
                     p Kart seçin, yükleme yapın veya makine testini açın.
                 div.demo-quick-buttons
+                    button.btn.btn-outline-primary(type='button' disabled title='Okuyucu bağlantısı hazırlandığında kullanılacak') Kart okut · Yakında
                     button.btn.btn-primary(type='button' data-toggle='modal' data-target='#newCardModal') Hesap ve kart oluştur
                     button.btn.btn-outline-primary(type='button' data-toggle='modal' data-target='#depositModal') Bakiye yükle
                     a.btn.btn-outline-primary(href='/phase1/') Makine testi
@@ -310,6 +311,9 @@ body.bg-dark.text-white(class=(typeof demoMode !== 'undefined' && demoMode ? 'de
                 ul#machineFaultList.mt-3
                 h2.h5 Cihaz bağlantı bilgileri
                 p.small Bilgiler kaydedilir; cihaza bağlantı veya ayar aktarımı henüz yapılmaz.
+                div.mb-2
+                    button.btn.btn-outline-primary(type='button' disabled title='Cihaz bağlantısı hazırlandığında kullanılacak') Cihaza bağlan · Yakında
+                    button.btn.btn-outline-primary.ml-2(type='button' disabled title='Ayar aktarımı hazırlandığında kullanılacak') Ayarları cihaza gönder · Yakında
                 form#deviceConfigForm
                     label(for='deviceIp') IP adresi
                     input#deviceIp.form-control(type='text' maxlength='45' placeholder='Örn. 192.168.1.20')

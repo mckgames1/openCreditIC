@@ -41,8 +41,8 @@
     select.value = wanted;
     card = data.cards.find(item => item.uid === select.value) || data.cards[0];
     account = data.accounts.find(item => item.id === card?.account_id);
-    if (!account) throw new Error('Demo kartı bulunamadı.');
-    document.getElementById('demoAccount').textContent = `${account.name} · Sanal kart ${card.uid} · Bakiye ${(account.tl_balance_cents / 100).toFixed(2)} TL`;
+    if (!account) throw new Error('Kart bulunamadı.');
+    document.getElementById('demoAccount').textContent = `${account.name} · Kart ${card.uid} · Bakiye ${(account.tl_balance_cents / 100).toFixed(2)} TL`;
     showPending();
     showPendingCardLink();
     const isAdmin = data.user.role === 'admin';
@@ -59,12 +59,12 @@
     document.getElementById('demoHistory').hidden = false;
     await refreshRecordedTopups();
     await refreshOpenIntents();
-    document.getElementById('demoHistoryScope').textContent = isAdmin ? 'Son 25 demo hareketi' : 'Son 25 kendi demo hareketiniz';
+    document.getElementById('demoHistoryScope').textContent = isAdmin ? 'Son 25 hareket' : 'Son 25 kendi hareketiniz';
     const history = document.getElementById('demoHistoryRows');
     history.replaceChildren();
     for (const entry of data.ledger) {
       const row = document.createElement('tr');
-      let type = { topup: 'Yükleme', game_charge: 'Oyun harcaması', correction: 'Düzeltme', free_play: 'Ücretsiz demo oyun' }[entry.entry_type] || entry.entry_type;
+      let type = { topup: 'Yükleme', game_charge: 'Oyun harcaması', correction: 'Düzeltme', free_play: 'Ücretsiz oyun' }[entry.entry_type] || entry.entry_type;
       if (isAdmin && ['correction', 'free_play'].includes(entry.entry_type) && entry.note) type += ` — ${entry.note}`;
       for (const value of [entry.created_at, type, (entry.amount_cents / 100).toFixed(2) + ' TL', (entry.balance_after_cents / 100).toFixed(2) + ' TL', entry.id]) {
         const cell = document.createElement('td');
@@ -77,7 +77,7 @@
     if (isAdmin) {
       const pulseRows = document.getElementById('demoPulseRows');
       pulseRows.replaceChildren();
-      const labels = { pending: 'Bekliyor', succeeded: 'Sanal olarak başarılı', ambiguous: 'Belirsiz — inceleme gerekli', failed: 'Sanal olarak başarısız' };
+      const labels = { pending: 'Bekliyor', succeeded: 'Testte başarılı', ambiguous: 'Belirsiz — inceleme gerekli', failed: 'Testte başarısız' };
       for (const pulse of data.pulses) {
         const row = document.createElement('tr');
         for (const value of [pulse.created_at, pulse.machine_id, (pulse.amount_cents / 100).toFixed(2) + ' TL', labels[pulse.status] || 'Bilinmeyen durum', pulse.id]) {
@@ -121,7 +121,7 @@
       document.getElementById('demoCardStatus').textContent = `${card.uid}: ${card.locked ? 'Engelli' : 'Aktif'}`;
       document.getElementById('demoCardLock').textContent = card.locked ? 'Kart engelini kaldır' : 'Kartı engelle';
       const tl = value => (Number(value) / 100).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' TL';
-      document.getElementById('demoTotals').textContent = `Yükleme: ${tl(data.summary.topups_cents)} · Harcama: ${tl(data.summary.game_charges_cents)} · Net düzeltme: ${tl(data.summary.corrections_cents)} · Ücretsiz demo oyun: ${data.summary.free_plays_count} adet · Kalan bakiye: ${tl(data.accounts.reduce((sum, item) => sum + item.tl_balance_cents, 0))}`;
+      document.getElementById('demoTotals').textContent = `Yükleme: ${tl(data.summary.topups_cents)} · Harcama: ${tl(data.summary.game_charges_cents)} · Net düzeltme: ${tl(data.summary.corrections_cents)} · Ücretsiz oyun: ${data.summary.free_plays_count} adet · Kalan bakiye: ${tl(data.accounts.reduce((sum, item) => sum + item.tl_balance_cents, 0))}`;
       showPendingFreePlay();
       await refreshReport();
       showPendingCorrection();
@@ -156,11 +156,11 @@
       rows.replaceChildren(); document.getElementById('demoRecordedTopups').hidden = false;
       for (const record of data.records) {
         const entry = record.entry; const row = document.createElement('tr');
-        const values = [entry?.created_at || '—', entry?.actor || '—', entry?.card_uid || '—', entry ? (entry.amount_cents / 100).toFixed(2) + ' TL' : '—', record.request_key, record.status === 'recorded' ? 'Demo kaydı doğrulandı' : 'Tutarsız — inceleme gerekli'];
+        const values = [entry?.created_at || '—', entry?.actor || '—', entry?.card_uid || '—', entry ? (entry.amount_cents / 100).toFixed(2) + ' TL' : '—', record.request_key, record.status === 'recorded' ? 'Kayıt doğrulandı' : 'Tutarsız — inceleme gerekli'];
         for (const value of values) { const cell = document.createElement('td'); cell.textContent = value; row.append(cell); }
         rows.append(row);
       }
-      status.textContent = data.records.length ? 'Yalnızca sunucuda bulunan kayıtlar gösteriliyor.' : 'Gösterilecek doğrulanmış demo kaydı yok; eksik isteklerin sonucu bilinmiyor.';
+      status.textContent = data.records.length ? 'Yalnızca sunucuda bulunan kayıtlar gösteriliyor.' : 'Gösterilecek doğrulanmış kayıt yok; eksik isteklerin sonucu bilinmiyor.';
     } catch (error) {
       if (request === topupHistoryRequest && currentUser?.id === user) { rows.replaceChildren(); document.getElementById('demoRecordedTopups').hidden = false; status.textContent = `Merkez kayıtları okunamadı: ${error.message}. Sonuç bilinmiyor.`; }
     }
@@ -177,7 +177,7 @@
         const item = document.createElement('li'); item.className = 'mb-2';
         const label = document.createElement('span');
         label.textContent = `${intent.createdAt} · ${intent.payload.cardUid || 'Kart yok'} · ${(intent.payload.amountCents / 100).toFixed(2)} TL · ${intent.id} `;
-        const button = document.createElement('button'); button.type = 'button'; button.className = 'btn btn-sm btn-outline-warning'; button.textContent = 'Bu demo niyetini tamamla';
+        const button = document.createElement('button'); button.type = 'button'; button.className = 'btn btn-sm btn-outline-warning'; button.textContent = 'Bu isteği tamamla';
         button.addEventListener('click', async () => {
           button.disabled = true;
           try {
@@ -185,7 +185,7 @@
             const local = PendingDemoTopups.list().find(p => p.userId === userId && p.body.idempotencyKey === intent.id);
             if (local) PendingDemoTopups.clear(local);
             await refresh(intent.payload.cardUid);
-            tell(`${result.duplicate ? 'Önceki demo yükleme doğrulandı' : 'Demo niyeti tamamlandı'}: ${result.entryId}.`);
+            tell(`${result.duplicate ? 'Önceki yükleme doğrulandı' : 'Yükleme tamamlandı'}: ${result.entryId}.`);
           } catch (error) { tell(`${error.message} Sonuç belirsizse aynı niyet kimliğiyle inceleyin.`); }
           finally { button.disabled = false; }
         });
@@ -208,7 +208,7 @@
       if (currentUser?.id !== requestingUser || currentUser?.role !== 'admin') return;
       if (data.status === 'recorded') {
         const entry = data.entry;
-        result.textContent = `Merkezde demo yükleme kaydı var: ${entry.id} · ${entry.created_at} UTC · ${entry.actor || 'Kullanıcı belirtilmemiş'} · ${entry.card_uid || 'Kart belirtilmemiş'} · ${(entry.amount_cents / 100).toFixed(2)} TL. İşlem sonrası hesap bakiyesi: ${(entry.balance_after_cents / 100).toFixed(2)} TL; bu güncel bakiye olmayabilir.`;
+        result.textContent = `Merkezde yükleme kaydı var: ${entry.id} · ${entry.created_at} UTC · ${entry.actor || 'Kullanıcı belirtilmemiş'} · ${entry.card_uid || 'Kart belirtilmemiş'} · ${(entry.amount_cents / 100).toFixed(2)} TL. İşlem sonrası hesap bakiyesi: ${(entry.balance_after_cents / 100).toFixed(2)} TL; bu güncel bakiye olmayabilir.`;
       } else if (data.status === 'inconsistent') result.textContent = 'Kayıt tutarsız; sonuç doğrulanamadı. İnceleme gerekir, otomatik işlem yapılmadı.';
       else result.textContent = 'Merkezde bu kimlikle doğrulanmış yükleme bulunamadı. Sonuç bilinmiyor: istek ulaşmamış veya sürüyor olabilir; yeni yükleme ya da iade yapılmadı.';
     } catch (error) { if (currentUser?.id === requestingUser && currentUser?.role === 'admin') result.textContent = `Sorgu tamamlanamadı: ${error.message} Sonuç bilinmiyor.`; }
@@ -229,7 +229,7 @@
       if (request !== detailRequest) return;
       const tbody = document.getElementById('demoDetailRows'); tbody.replaceChildren();
       const types = { topup: 'Yükleme', game_charge: 'Oyun harcaması', correction: 'Düzeltme', refund: 'İade kaydı', bonus: 'Bonus kaydı', free_play: 'Ücretsiz oyun kaydı' };
-      const statuses = { pending: 'Bekliyor', succeeded: 'Sanal olarak başarılı', ambiguous: 'Belirsiz', failed: 'Sanal olarak başarısız' };
+      const statuses = { pending: 'Bekliyor', succeeded: 'Testte başarılı', ambiguous: 'Belirsiz', failed: 'Testte başarısız' };
       for (const entry of data.rows) {
         const row = document.createElement('tr');
         const device = entry.machine_id ? `${entry.machine_name || entry.machine_id} (${entry.machine_id}) / ${statuses[entry.command_status] || 'Komut kaydı yok'}` : '—';
@@ -256,13 +256,13 @@
       if (!response.ok) { const data = await response.json(); throw new Error(data.message || 'CSV indirilemedi.'); }
       const url = URL.createObjectURL(await response.blob()); const link = document.createElement('a');
       link.href = url; link.download = 'opencredit-demo-hareketler.csv'; document.body.append(link); link.click(); link.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 1000); tell('Ayrıntılı demo hareketleri indirildi.');
+      setTimeout(() => URL.revokeObjectURL(url), 1000); tell('Ayrıntılı hareketler indirildi.');
     } catch (error) { tell(error.message); } finally { button.disabled = false; }
   });
   document.getElementById('demoPulseRefresh').addEventListener('click', async event => {
     const button = event.currentTarget;
     button.disabled = true;
-    try { await refresh(); tell('Sanal komut geçmişi yenilendi.'); }
+    try { await refresh(); tell('Test komutu geçmişi yenilendi.'); }
     catch (error) { tell(error.message); }
     finally { button.disabled = false; }
   });
@@ -274,9 +274,9 @@
       if (request !== reportRequest) return;
       const report = data.report;
       const tl = cents => (cents / 100).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' TL';
-      document.getElementById('demoReportTotals').textContent = `İstanbul dönemi: ${report.start} – ${report.end} (bitiş hariç) · Dönem yüklemesi: ${tl(report.totals.topups_cents)} · Dönem oyun harcaması: ${tl(report.totals.game_charges_cents)} · Dönem net düzeltmesi: ${tl(report.totals.corrections_cents)} · Ücretsiz demo oyun: ${report.totals.free_plays_count} adet · Şu anki toplam bakiye: ${tl(report.balance_cents)}`;
+      document.getElementById('demoReportTotals').textContent = `İstanbul dönemi: ${report.start} – ${report.end} (bitiş hariç) · Dönem yüklemesi: ${tl(report.totals.topups_cents)} · Dönem oyun harcaması: ${tl(report.totals.game_charges_cents)} · Dönem net düzeltmesi: ${tl(report.totals.corrections_cents)} · Ücretsiz oyun: ${report.totals.free_plays_count} adet · Şu anki toplam bakiye: ${tl(report.balance_cents)}`;
       const status = report.commandStatus;
-      document.getElementById('demoReportCommands').textContent = `Sanal komut sonucu belirsiz kesinti: ${tl(status.ambiguous)} · Bekleyen: ${tl(status.pending)} · Başarısız: ${tl(status.failed)} · Komut kaydı bulunmayan: ${tl(status.missing)} · Sanal olarak başarılı: ${tl(status.succeeded)}`;
+      document.getElementById('demoReportCommands').textContent = `Test komutu sonucu belirsiz kesinti: ${tl(status.ambiguous)} · Bekleyen: ${tl(status.pending)} · Başarısız: ${tl(status.failed)} · Komut kaydı bulunmayan: ${tl(status.missing)} · Testte başarılı: ${tl(status.succeeded)}`;
       const chart = document.getElementById('demoReportChart');
       chart.replaceChildren();
       const maximum = Math.max(1, ...report.buckets.map(item => item.cents));
@@ -316,8 +316,8 @@
     try {
       const pending = pendingFreePlay();
       label.hidden = !pending; retry.hidden = !pending;
-      if (pending) label.textContent = currentUser?.id === pending.userId ? `Sonucu bilinmeyen ücretsiz demo oyun: ${pending.body.machineId} · ${pending.body.cardUid}. Aynı istekle doğrulayın; yeni işlem başlatılamaz.` : 'Başka yöneticiye ait bekleyen ücretsiz demo oyun var; o kullanıcıyla doğrulayın.';
-    } catch (_) { label.hidden = false; retry.hidden = true; label.textContent = 'Bekleyen ücretsiz demo oyun kaydı okunamıyor; yeni işlem göndermeyin.'; }
+      if (pending) label.textContent = currentUser?.id === pending.userId ? `Sonucu bilinmeyen ücretsiz oyun: ${pending.body.machineId} · ${pending.body.cardUid}. Aynı istekle doğrulayın; yeni işlem başlatılamaz.` : 'Başka yöneticiye ait bekleyen ücretsiz oyun var; o kullanıcıyla doğrulayın.';
+    } catch (_) { label.hidden = false; retry.hidden = true; label.textContent = 'Bekleyen ücretsiz oyun kaydı okunamıyor; yeni işlem göndermeyin.'; }
   }
   async function sendFreePlay() {
     let pending;
@@ -332,20 +332,20 @@
       sessionStorage.removeItem(freePlayKey); showPendingFreePlay();
       document.getElementById('demoFreePlayForm').reset();
       await refresh(pending.body.cardUid);
-      tell(`${result.duplicate ? 'Önceki ücretsiz demo oyun doğrulandı' : 'Ücretsiz demo oyun kaydedildi'}; sanal komut ${result.pulseCommandId}. Bakiye değişmedi.`);
-    } catch (error) { tell(`${error.message} Bekleyen demo isteği korunuyor; aynı istekle doğrulayın.`); }
+      tell(`${result.duplicate ? 'Önceki ücretsiz oyun doğrulandı' : 'Ücretsiz oyun kaydedildi'}; test komutu ${result.pulseCommandId}. Bakiye değişmedi.`);
+    } catch (error) { tell(`${error.message} Bekleyen isteği korunuyor; aynı istekle doğrulayın.`); }
     finally { button.disabled = false; retry.disabled = false; }
   }
   document.getElementById('demoFreePlayForm').addEventListener('submit', async event => {
     event.preventDefault();
-    if (!currentUser || currentUser.role !== 'admin' || !card) return tell('Önce yönetici olarak giriş yapıp sanal kart seçin.');
+    if (!currentUser || currentUser.role !== 'admin' || !card) return tell('Önce yönetici olarak giriş yapıp kart seçin.');
     try {
-      if (pendingFreePlay()) return tell('Önce bekleyen ücretsiz demo oyun isteğini doğrulayın.');
+      if (pendingFreePlay()) return tell('Önce bekleyen ücretsiz oyun isteğini doğrulayın.');
       const body = { machineId: document.getElementById('demoMachine').value, cardUid: card.uid, reason: document.getElementById('demoFreePlayReason').value.trim(), idempotencyKey: 'freeplay-' + crypto.randomUUID() };
       if (body.reason.length < 10) return tell('Gerekçe en az 10 karakter olmalıdır.');
       sessionStorage.setItem(freePlayKey, JSON.stringify({ userId: currentUser.id, body }));
       showPendingFreePlay(); await sendFreePlay();
-    } catch (_) { tell('Bekleyen demo isteği kaydedilemedi veya okunamadı; yeni işlem göndermeyin.'); }
+    } catch (_) { tell('Bekleyen isteği kaydedilemedi veya okunamadı; yeni işlem göndermeyin.'); }
   });
   document.getElementById('demoFreePlayRetry').addEventListener('click', sendFreePlay);
   document.getElementById('demoReportCsv').addEventListener('click', async event => {
@@ -362,7 +362,7 @@
       link.href = url; link.download = 'opencredit-demo-rapor.csv';
       document.body.append(link); link.click(); link.remove();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
-      tell('Seçili demo dönem raporu indirildi.');
+      tell('Seçili dönem raporu indirildi.');
     } catch (error) { tell(error.message); }
     finally { button.disabled = false; }
   });
@@ -379,9 +379,9 @@
     document.getElementById('demoPaymentCooldownMs').value = machine.payment_cooldown_ms;
     document.getElementById('demoLedEnabled').checked = machine.led_enabled;
     document.getElementById('demoLedBrightness').value = machine.led_brightness;
-    const labels = { pending: 'Bekliyor', applied: 'Sanal olarak uygulandı', failed: 'Sanal uygulama başarısız' };
-    const lastApplied = machine.simulated_applied_version === null ? 'Henüz sanal uygulama yok' : `Son sanal uygulama sürümü ${machine.simulated_applied_version}`;
-    document.getElementById('demoSettingsStatus').textContent = `Ayar sürümü ${machine.settings_version}, sanal LED raporu: ${labels[machine.settings_status]}. ${lastApplied}. Gerçek cihaz doğrulaması yok.`;
+    const labels = { pending: 'Bekliyor', applied: 'Testte uygulandı', failed: 'Test başarısız' };
+    const lastApplied = machine.simulated_applied_version === null ? 'Henüz test edilmedi' : `Son test sürümü ${machine.simulated_applied_version}`;
+    document.getElementById('demoSettingsStatus').textContent = `Ayar sürümü ${machine.settings_version}, test LED raporu: ${labels[machine.settings_status]}. ${lastApplied}. Gerçek cihaz doğrulaması yok.`;
   }
   document.getElementById('demoMachine').addEventListener('change', showMachine);
   document.getElementById('demoLedForm').addEventListener('submit', async event => {
@@ -395,7 +395,7 @@
         brightness: Number(document.getElementById('demoLedBrightness').value)
       }, 'PATCH');
       await refresh();
-      tell('Demo LED ayarı kaydedildi. Durum seçili makinede gösteriliyor.');
+      tell('LED ayarı kaydedildi. Durum seçili makinede gösteriliyor.');
     } catch (error) { tell(error.message); }
     finally { button.disabled = false; }
   });
@@ -411,7 +411,7 @@
       await refresh();
       document.getElementById('demoMachine').value = result.machine.id;
       showMachine();
-      tell(`Demo makine eklendi: ${result.machine.name}.`);
+      tell(`makine eklendi: ${result.machine.name}.`);
     } catch (error) { tell(error.message); }
     finally { button.disabled = false; }
   });
@@ -426,7 +426,7 @@
         paymentCooldownMs: document.getElementById('demoPaymentCooldownMs').value
       }, 'PATCH');
       await refresh();
-      tell('Demo kart okuma süreleri kaydedildi.');
+      tell('kart okuma süreleri kaydedildi.');
     } catch (error) { tell(error.message); }
     finally { button.disabled = false; }
   });
@@ -436,7 +436,7 @@
     const message = document.getElementById('demoAttachPending');
     message.hidden = !pending;
     document.getElementById('demoAttachRetry').hidden = !pending;
-    if (pending) message.textContent = `Sonucu bilinmeyen sanal kart bağlama: ${pending.body.uid} · ${pending.body.accountId}. Aynı kullanıcıyla doğrulayın.`;
+    if (pending) message.textContent = `Sonucu bilinmeyen kart bağlama: ${pending.body.uid} · ${pending.body.accountId}. Aynı kullanıcıyla doğrulayın.`;
   }
   async function sendCardLink() {
     const pending = JSON.parse(sessionStorage.getItem(attachKey) || 'null');
@@ -453,7 +453,7 @@
       showPendingCardLink();
       document.getElementById('demoAttachCardForm').reset();
       await refresh(result.card.uid);
-      tell(`Sanal kart ${result.card.uid} hesaba ${result.duplicate ? 'önceden bağlanmış' : 'bağlandı'}.`);
+      tell(`Kart ${result.card.uid} hesaba ${result.duplicate ? 'önceden bağlanmış' : 'bağlandı'}.`);
     } catch (error) {
       if (error.status === 400 || error.status === 404 || error.code === 'card_exists' || error.code === 'account_locked') { sessionStorage.removeItem(attachKey); showPendingCardLink(); }
       tell(error.message);
@@ -481,7 +481,7 @@
     try {
       await api('cards/' + encodeURIComponent(uid) + '/lock', { locked });
       await refresh(uid);
-      tell(locked ? 'Demo kart engellendi.' : 'Demo kart engeli kaldırıldı.');
+      tell(locked ? 'kart engellendi.' : 'kart engeli kaldırıldı.');
     } catch (error) { tell(error.message + ' Durumu yenileyip kontrol edin.'); }
     finally { button.disabled = false; document.getElementById('demoCardChoice').disabled = false; }
   });
@@ -509,7 +509,7 @@
       showPendingCorrection();
       document.getElementById('demoCorrectionForm').reset();
       await refresh();
-      tell(`Demo düzeltme ${result.duplicate ? 'doğrulandı' : 'kaydedildi'}: ${result.entryId}.`);
+      tell(`düzeltme ${result.duplicate ? 'doğrulandı' : 'kaydedildi'}: ${result.entryId}.`);
     } catch (error) {
       if (error.status === 400 || error.status === 404 || error.code === 'invalid_balance') { sessionStorage.removeItem(correctionKey); showPendingCorrection(); }
       tell(error.message);
@@ -542,7 +542,7 @@
       });
       form.reset();
       await refresh();
-      tell(`Demo personel hesabı oluşturuldu: ${result.user.username}.`);
+      tell(`Personel hesabı oluşturuldu: ${result.user.username}.`);
     } catch (error) { tell(error.message); }
     finally { button.disabled = false; }
   });
@@ -571,7 +571,7 @@
     try {
       await api('auth/demo-password-reset', { username: document.getElementById('demoResetUsername').value, token: document.getElementById('demoResetToken').value, newPassword: document.getElementById('demoResetPassword').value });
       form.reset();
-      tell('Demo personel parolası yenilendi; yeni parolayla giriş yapın.');
+      tell('personel parolası yenilendi; yeni parolayla giriş yapın.');
     } catch (error) { tell(error.message); }
     finally { button.disabled = false; }
   });
@@ -590,7 +590,7 @@
         enabled: document.getElementById('demoMachineEnabled').checked
       }, 'PATCH');
       await refresh();
-      tell('Demo makine ayarları kaydedildi.');
+      tell('Makine ayarları kaydedildi.');
     } catch (error) { tell(error.message); }
     finally { button.disabled = false; }
   });
@@ -618,7 +618,7 @@
       const result = await api('demo/register', { name: document.getElementById('userName').value, uid: document.getElementById('cardNum').value, idempotencyKey: registerKey });
       registerKey = null;
       await refresh(result.card.uid);
-      tell('Demo hesap ve sanal kart oluşturuldu.');
+      tell('Müşteri ve kart oluşturuldu.');
       window.$('#newCardModal').modal('hide');
     } catch (error) { tell(error.message + ' Aynı isteği tekrar deneyebilirsiniz.'); }
     finally { button.disabled = false; }
@@ -631,7 +631,7 @@
       await api(status.setupRequired ? 'setup' : 'auth/login', { username: document.getElementById('demoUsername').value, password: document.getElementById('demoPassword').value });
       document.getElementById('demoPassword').value = '';
       await refresh();
-      tell('Giriş yapıldı. Yükleme düğmesiyle demo bakiye ekleyebilirsiniz.');
+      tell('Giriş yapıldı. Yükleme düğmesiyle bakiye ekleyebilirsiniz.');
     } catch (error) { tell(error.message); }
   });
   function getPending() { return PendingDemoTopups.list()[0] || null; }
@@ -643,9 +643,9 @@
       message.hidden = !pending;
       retry.hidden = !pending;
       if (pending) message.textContent = currentUser?.id === pending.userId
-        ? `Sonucu bilinmeyen demo yükleme: ${pending.body.cardUid} · ${pending.body.amountTl} TL · İstek kimliği: ${pending.body.idempotencyKey}. Aynı kullanıcıyla doğrulayın; yeni yükleme başlatılamaz.`
-        : 'Bu tarayıcıda başka bir kullanıcının bekleyen demo yüklemesi var; işlemi başlatan kullanıcıyla doğrulayın.';
-    } catch (_) { message.hidden = false; retry.hidden = true; message.textContent = 'Bekleyen demo kaydı okunamıyor; yeni yükleme başlatılmadı. Tarayıcı verisini silmeyin ve durumu inceleyin.'; }
+        ? `Sonucu bilinmeyen yükleme: ${pending.body.cardUid} · ${pending.body.amountTl} TL · İstek kimliği: ${pending.body.idempotencyKey}. Aynı kullanıcıyla doğrulayın; yeni yükleme başlatılamaz.`
+        : 'Bu tarayıcıda başka bir kullanıcının bekleyen yüklemesi var; işlemi başlatan kullanıcıyla doğrulayın.';
+    } catch (_) { message.hidden = false; retry.hidden = true; message.textContent = 'Bekleyen kaydı okunamıyor; yeni yükleme başlatılmadı. Tarayıcı verisini silmeyin ve durumu inceleyin.'; }
   }
   async function sendPendingTopup() {
     let pending;
@@ -663,7 +663,7 @@
       PendingDemoTopups.clear(pending);
       showPending();
       await refresh(pending.body.cardUid);
-      tell(`${result.duplicate ? 'Önceki yükleme doğrulandı' : 'Demo yükleme tamamlandı'}. İşlem ${result.entryId}; bakiye ${result.balanceAfterTl} TL.`);
+      tell(`${result.duplicate ? 'Önceki yükleme doğrulandı' : 'Yükleme tamamlandı'}. İşlem ${result.entryId}; bakiye ${result.balanceAfterTl} TL.`);
       window.$('#depositModal').modal('hide');
     } catch (error) {
       tell(error.message + ' Kayıt korunuyor; sonuç belirsizse inceleyin ve aynı istekle doğrulayın.');
@@ -672,11 +672,11 @@
   window.depositCredits = async () => {
     if (!account || !card || !currentUser) return tell('Önce giriş yapın.');
     const amountTl = document.getElementById('depositBalance').value;
-    if (!PendingDemoTopups.validAmount(amountTl)) return tell('Geçerli pozitif demo tutarı girin (en fazla iki ondalık).');
+    if (!PendingDemoTopups.validAmount(amountTl)) return tell('Geçerli pozitif tutarı girin (en fazla iki ondalık).');
     try { if (getPending()) return tell('Önce bekleyen yüklemeyi doğrulayın.'); }
     catch (_) { showPending(); return; }
     const pending = { userId: currentUser.id, body: { accountId: account.id, cardUid: card.uid, amountTl, idempotencyKey: 'topup-' + crypto.randomUUID() } };
-    try { PendingDemoTopups.save(pending); } catch (_) { tell('Demo isteği tarayıcıya kaydedilemedi; yükleme gönderilmedi.'); return; }
+    try { PendingDemoTopups.save(pending); } catch (_) { tell('isteği tarayıcıya kaydedilemedi; yükleme gönderilmedi.'); return; }
     showPending();
     await sendPendingTopup();
   };

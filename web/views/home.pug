@@ -52,30 +52,30 @@ body.bg-dark.text-white(class=(typeof demoMode !== 'undefined' && demoMode ? 'de
     div.container.text-center
         h1.mt-5 #{config.arcade_name}
         if typeof demoMode !== 'undefined' && demoMode
-            div.alert.alert-warning.mt-3.text-dark DEMO / GERÇEK DONANIM DEĞİL — Sanal kart ve sahte bakiye
-            nav.demo-navigation(aria-label='Demo bölümleri')
+            div.alert.alert-warning.mt-3.text-dark Gerçek okuyucu ve makine bağlantısı henüz doğrulanmadı.
+            nav.demo-navigation(aria-label='Bölümler')
                 a(href='#demoLogin') Giriş ve kart
                 a(href='#demoHistory') Son hareketler
                 a(href='#demoAdmin') Yönetici işlemleri
-                a(href='/phase1/') Sanal makine
+                a(href='/phase1/') Makine testi
             section.demo-quick-actions(aria-label='Hızlı işlemler')
                 div
                     p.demo-eyebrow GÜNLÜK İŞLEMLER
-                    h2 Demo işletme paneli
-                    p Kart seçin, yükleme yapın veya sanal makineyi açın.
+                    h2 İşletme paneli
+                    p Kart seçin, yükleme yapın veya makine testini açın.
                 div.demo-quick-buttons
                     button.btn.btn-primary(type='button' data-toggle='modal' data-target='#newCardModal') Hesap ve kart oluştur
-                    button.btn.btn-outline-primary(type='button' data-toggle='modal' data-target='#depositModal') Demo bakiye yükle
-                    a.btn.btn-outline-primary(href='/phase1/') Sanal makine
-            section#demoOverview.demo-overview(aria-label='Demo işlem özeti' hidden)
+                    button.btn.btn-outline-primary(type='button' data-toggle='modal' data-target='#depositModal') Bakiye yükle
+                    a.btn.btn-outline-primary(href='/phase1/') Makine testi
+            section#demoOverview.demo-overview(aria-label='İşlem özeti' hidden)
                 article
-                    h2 Demo genel özeti
+                    h2 Genel özet
                     p#demoOverviewTotals Henüz veri yok.
                 article
                     h2 Seçili dönem
                     p#demoOverviewPeriod Henüz veri yok.
                 article
-                    h2 Cihazlara göre demo harcama
+                    h2 Cihazlara göre harcama
                     p#demoOverviewMachines Henüz veri yok.
             div.card.text-dark.p-3.mt-3
                 form#demoLogin
@@ -85,7 +85,7 @@ body.bg-dark.text-white(class=(typeof demoMode !== 'undefined' && demoMode ? 'de
                     input#demoPassword.form-control(type='password' required minlength='10' autocomplete='current-password')
                     button#demoLoginButton.btn.btn-primary.mt-2(type='submit') Giriş yap / ilk yönetici oluştur
                 details.mt-3.text-left
-                    summary Demo personel parolasını yenile
+                    summary Personel parolasını yenile
                     p.small Yöneticiden alınan tek kullanımlık kodu kullanın. Gerçek hesaplar için değildir.
                     form#demoResetForm
                         label(for='demoResetUsername') Personel kullanıcı adı
@@ -96,17 +96,17 @@ body.bg-dark.text-white(class=(typeof demoMode !== 'undefined' && demoMode ? 'de
                         input#demoResetPassword.form-control(type='password' required minlength='10' maxlength='256' autocomplete='new-password')
                         label(for='demoResetConfirm') Yeni parola tekrar
                         input#demoResetConfirm.form-control(type='password' required minlength='10' maxlength='256' autocomplete='new-password')
-                        button.btn.btn-primary.mt-2(type='submit') Demo parolayı yenile
+                        button.btn.btn-primary.mt-2(type='submit') Parolayı yenile
                 p#demoAccount.mt-3.mb-0 Giriş bekleniyor.
-                label(for='demoCardChoice') Sanal kart seçimi
+                label(for='demoCardChoice') Kart seçimi
                 select#demoCardChoice.form-control
                 form#demoAttachCardForm.mt-3
-                    label(for='demoAttachUid') Seçili hesaba başka sanal kart ekle (yalnız demo)
-                    input#demoAttachUid.form-control(required maxlength='128' placeholder='Sanal UID, ör. 00112233' autocomplete='off')
-                    button.btn.btn-outline-primary.mt-2(type='submit') Sanal kartı bağla
+                    label(for='demoAttachUid') Seçili hesaba başka kart ekle
+                    input#demoAttachUid.form-control(required maxlength='128' placeholder='Kart numarasını elle girin' autocomplete='off')
+                    button.btn.btn-outline-primary.mt-2(type='submit') Kartı bağla
                 p#demoAttachPending.alert.alert-warning.text-dark.mt-2(hidden)
                 button#demoAttachRetry.btn.btn-warning(type='button' hidden) Bekleyen kart bağlamayı doğrula
-                a.btn.btn-outline-primary.mt-2(href='/phase1/') Makine simülatörüne git
+                a.btn.btn-outline-primary.mt-2(href='/phase1/') Makine testine git
                 p#demoNotice(role='status')
                 p#demoPendingNotice.alert.alert-warning.text-dark(hidden)
                 button#demoRetryTopup.btn.btn-warning(type='button' hidden) Bekleyen yüklemeyi doğrula
@@ -124,7 +124,7 @@ body.bg-dark.text-white(class=(typeof demoMode !== 'undefined' && demoMode ? 'de
                                 th İşlem kimliği
                         tbody#demoHistoryRows
             section#demoRecordedTopups.card.text-dark.p-3.mt-3.text-left(hidden)
-                h2.h5 Merkezde kaydedilmiş demo yüklemeler
+                h2.h5 Kaydedilmiş yüklemeler
                 p.small Son 25 kayıt gösterilir; personel yalnız kendi kayıtlarını görür. Bir isteğin listede olmaması başarısız veya hiç ulaşmamış olduğunu kanıtlamaz. Tutar ve saate bakarak yeni kimlikle yeniden yükleme yapmayın.
                 button#demoRecordedTopupsRefresh.btn.btn-outline-secondary.mb-2(type='button') Kayıtları yenile
                 p#demoRecordedTopupsStatus(role='status')
@@ -134,26 +134,26 @@ body.bg-dark.text-white(class=(typeof demoMode !== 'undefined' && demoMode ? 'de
                             tr
                                 th Zaman (UTC)
                                 th Kullanıcı
-                                th Sanal kart
-                                th Demo tutarı
+                                th Kart
+                                th Tutar
                                 th İstek kimliği
                                 th Merkez durumu
                         tbody#demoRecordedTopupsRows
             section#demoOpenIntents.card.text-dark.p-3.mt-3.text-left(hidden)
-                h2.h5 Merkezde bekleyen kendi demo niyetleriniz
-                p.small Yalnız merkeze kaydedilmiş son 25 açık niyet gösterilir. Liste eksikliği, isteğin ulaşmadığını veya başarısız olduğunu kanıtlamaz. Seçilen niyeti tamamla düğmesi demo bakiye yüklemesi yapabilir; belirsiz durumu önce inceleyin.
+                h2.h5 Bekleyen yükleme istekleriniz
+                p.small Son 25 açık istek gösterilir. Kayıt olmaması, isteğin ulaşmadığını veya başarısız olduğunu kanıtlamaz. Tamamlamadan önce belirsiz durumu inceleyin.
                 button#demoOpenIntentsRefresh.btn.btn-outline-secondary.mb-2(type='button') Bekleyen niyetleri yenile
                 p#demoOpenIntentsStatus(role='status')
                 ul#demoOpenIntentsRows.list-unstyled
             section#demoAdmin.card.text-dark.p-3.mt-3.text-left(hidden)
-                h2.h5 Belirsiz demo yüklemesini sorgula
+                h2.h5 Belirsiz yüklemeyi sorgula
                 p.small Bekleyen ekrandaki istek kimliğini girin. Yalnız merkezde kaydedilmiş yükleme bulunabilir; kayıt yoksa istek ulaşmamış, sürüyor veya sonucu bilinmiyor olabilir. Sorgu yükleme, iptal ya da iade yapmaz.
                 form#demoTopupLookupForm
-                    label(for='demoTopupLookupKey') Demo istek kimliği
+                    label(for='demoTopupLookupKey') İstek kimliği
                     input#demoTopupLookupKey.form-control(required minlength='8' maxlength='200' autocomplete='off')
                     button.btn.btn-outline-primary.mt-2(type='submit') Yalnız kayıt sorgula
                 p#demoTopupLookupResult.mt-2(role='status')
-                h2.h5 Ayrıntılı demo hareketleri
+                h2.h5 Ayrıntılı hareketler
                 p.small Tarihler İstanbul saatine göre, uçlar dahil filtrelenir. Cihaz filtresi yalnız ilgili oyun harcamalarını gösterir; yükleme ve düzeltmeler cihaza bağlı değildir.
                 form#demoDetailForm
                     label(for='demoDetailFrom') Başlangıç tarihi
@@ -183,15 +183,15 @@ body.bg-dark.text-white(class=(typeof demoMode !== 'undefined' && demoMode ? 'de
                                 th İşlem
                                 th Tutar (TL)
                                 th İşlem sonrası hesap bakiyesi
-                                th Cihaz / sanal komut durumu
+                                th Cihaz / test komutu durumu
                                 th İşlem kimliği
                         tbody#demoDetailRows
                 div
                     button#demoDetailPrevious.btn.btn-outline-secondary(type='button') Önceki sayfa
                     button#demoDetailNext.btn.btn-outline-secondary.ml-2(type='button') Sonraki sayfa
                 p.small CSV en fazla 5000 filtrelenmiş kayıt içerir; sınır aşılırsa filtreyi daraltın. İşlem sonrası bakiye, rapor döneminin son bakiyesi değildir.
-                h2.h5 Son sanal komutlar
-                p.small Son 25 demo komutu gösterilir. Sanal başarı, fiziksel makinenin kredi aldığının kanıtı değildir; belirsiz sonuç otomatik başarı veya iade değildir.
+                h2.h5 Son test komutları
+                p.small Son 25 test komutu gösterilir. Test sonucu fiziksel makinenin kredi aldığını kanıtlamaz; belirsiz sonuç otomatik başarı veya iade değildir.
                 button#demoPulseRefresh.btn.btn-outline-secondary.mb-2(type='button') Komut geçmişini yenile
                 div.table-responsive
                     table.table.table-sm.text-dark
@@ -199,25 +199,25 @@ body.bg-dark.text-white(class=(typeof demoMode !== 'undefined' && demoMode ? 'de
                             tr
                                 th Zaman (UTC)
                                 th Makine
-                                th Demo tutarı
-                                th Sanal komut durumu
+                                th Tutar
+                                th Test komutu durumu
                                 th Komut kimliği
                         tbody#demoPulseRows
-                h2.h5 Seçili demo kart
+                h2.h5 Seçili kart
                 p#demoCardStatus
                 button#demoCardLock.btn.btn-warning.mb-3(type='button') Kartı engelle
-                h2.h5 Demo personel hesabı oluştur
+                h2.h5 Personel hesabı oluştur
                 form#demoStaffForm
                     label(for='demoStaffUsername') Personel kullanıcı adı
                     input#demoStaffUsername.form-control(required minlength='3' maxlength='64' pattern='[A-Za-z0-9._-]+' autocomplete='off')
                     label(for='demoStaffPassword') Başlangıç parolası (en az 10 karakter)
                     input#demoStaffPassword.form-control(type='password' required minlength='10' autocomplete='new-password')
                     button.btn.btn-primary.mt-2.mb-3(type='submit') Personel oluştur
-                h2.h5 Demo personel hesapları
+                h2.h5 Personel hesapları
                 p.small Erişimi durdurulan personelin mevcut oturumu sona erer. Hesap ve işlem geçmişi korunur.
                 ul#demoStaffList.list-unstyled
-                h2.h5 Demo parola yenileme kodu oluştur
-                p.small Yalnız etkin demo personel için; kod 10 dakika geçerlidir ve bir kez kullanılır. Kodu personele yerel olarak güvenli biçimde iletin.
+                h2.h5 Parola yenileme kodu oluştur
+                p.small Yalnız etkin personel için; kod 10 dakika geçerlidir ve bir kez kullanılır. Kodu güvenli biçimde iletin.
                 form#demoResetIssueForm
                     label(for='demoResetStaff') Personel
                     select#demoResetStaff.form-control(required)
@@ -225,19 +225,19 @@ body.bg-dark.text-white(class=(typeof demoMode !== 'undefined' && demoMode ? 'de
                     input#demoResetAdminPassword.form-control(type='password' required autocomplete='current-password')
                     button.btn.btn-warning.mt-2(type='submit') Tek kullanımlık kod oluştur
                 p#demoResetIssueResult.mt-2(role='status')
-                h2.h5 Demo işlem özeti
+                h2.h5 İşlem özeti
                 p#demoTotals
-                p.small Yükleme, harcama ve net düzeltme ayrıdır; toplam bakiye tüm demo hesaplarındadır.
-                h2.h5 Gerekçeli ücretsiz demo oyun
-                p.small Yalnız yönetici için demo varsayımıdır; gerçek işletme kuralı değildir. Önce seçili sanal cihazda seçili kartı yaklaştırın. İşlem bakiye değiştirmez, yalnız bir sanal komut oluşturur.
+                p.small Yükleme, harcama ve net düzeltme ayrıdır; toplam bakiye tüm hesaplara aittir.
+                h2.h5 Gerekçeli ücretsiz oyun
+                p.small Yalnız yönetici için test işlemidir; gerçek işletme kuralı değildir. Önce test ekranında kartı seçin. İşlem bakiye değiştirmez, bir test komutu oluşturur.
                 form#demoFreePlayForm
                     label(for='demoFreePlayReason') Gerekçe (10–1000 karakter)
                     textarea#demoFreePlayReason.form-control(required minlength='10' maxlength='1000')
-                    button.btn.btn-warning.mt-2(type='submit') Ücretsiz demo oyun kaydet
+                    button.btn.btn-warning.mt-2(type='submit') Ücretsiz oyun kaydet
                 p#demoFreePlayPending.alert.alert-warning.mt-2(hidden)
                 button#demoFreePlayRetry.btn.btn-outline-warning(type='button' hidden) Aynı ücretsiz oyun isteğini doğrula
-                h2.h5 Dönemsel demo oyun harcaması
-                p.small İstanbul saati; seçilen tarihi içeren gün, Pazartesi başlayan hafta, ay veya yıl. Boş tarih bugün demektir. Oyun harcaması demo bakiye kesintisidir, gerçek gelir veya fiziksel kredi değildir; yükleme ikinci kez gelir olarak eklenmez.
+                h2.h5 Dönemsel oyun harcaması
+                p.small İstanbul saati; seçilen tarihi içeren gün, hafta, ay veya yıl. Boş tarih bugün demektir. Yükleme ve harcama ayrı gösterilir.
                 label(for='demoReportPeriod') Dönem
                 select#demoReportPeriod.form-control
                     option(value='day') Günlük
@@ -246,16 +246,16 @@ body.bg-dark.text-white(class=(typeof demoMode !== 'undefined' && demoMode ? 'de
                     option(value='year') Yıllık
                 label.mt-2(for='demoReportDate') Tarih (geçmiş dönem seçimi)
                 input#demoReportDate.form-control(type='date' min='1900-01-01' max='9998-12-31')
-                button#demoReportCsv.btn.btn-outline-primary.mt-2(type='button') Seçili demo raporunu CSV indir
+                button#demoReportCsv.btn.btn-outline-primary.mt-2(type='button') Raporu CSV indir
                 p.small CSV dönem özetidir; gerçek gelir veya dönem sonu bakiyesi değildir.
                 p#demoReportTotals.mt-2(role='status')
                 p#demoReportCommands.small
-                p.small Komut durumları rapor açıldığı andaki sanal durumlardır; sonuç belirsiz veya başarısız olabilir ve fiziksel kredi kanıtı değildir. Saat değişiminde tekrar eden saatler aynı çubukta toplanır; atlanan saat sıfır gösterilir.
-                div#demoReportChart(aria-label='Dönemsel demo oyun harcaması grafiği')
-                h3.h6.mt-3 Cihaz bazında demo oyun harcaması
+                p.small Test komutu durumları fiziksel kredi kanıtı değildir. Tekrar eden saatler aynı çubukta toplanır.
+                div#demoReportChart(aria-label='Dönemsel oyun harcaması grafiği')
+                h3.h6.mt-3 Cihaz bazında oyun harcaması
                 ul#demoReportMachines
-                h2.h5 Demo bakiye düzeltmesi
-                p.small Seçili sanal hesabı etkiler. Bu demo varsayımıdır; gerçek iade veya tahsilat değildir.
+                h2.h5 Bakiye düzeltmesi
+                p.small Seçili hesabı etkiler. Gerçek iade veya tahsilat değildir.
                 form#demoCorrectionForm
                     label(for='demoCorrectionDirection') Yön
                     select#demoCorrectionDirection.form-control
@@ -265,10 +265,10 @@ body.bg-dark.text-white(class=(typeof demoMode !== 'undefined' && demoMode ? 'de
                     input#demoCorrectionAmount.form-control(type='number' min='0.01' step='0.01' required)
                     label(for='demoCorrectionReason') Gerekçe (10–1000 karakter)
                     textarea#demoCorrectionReason.form-control(required minlength='10' maxlength='1000')
-                    button.btn.btn-warning.mt-2.mb-3(type='submit') Demo düzeltmeyi kaydet
+                    button.btn.btn-warning.mt-2.mb-3(type='submit') Düzeltmeyi kaydet
                 p#demoCorrectionPending.alert.alert-warning(hidden)
                 button#demoCorrectionRetry.btn.btn-warning(type='button' hidden) Bekleyen düzeltmeyi doğrula
-                h2.h5 Demo makine ekle
+                h2.h5 Makine ekle
                 form#demoCreateMachineForm
                     label(for='demoNewMachineId') Makine kimliği
                     input#demoNewMachineId.form-control(required pattern='[A-Za-z0-9_-]{2,64}' maxlength='64')
@@ -276,24 +276,24 @@ body.bg-dark.text-white(class=(typeof demoMode !== 'undefined' && demoMode ? 'de
                     input#demoNewMachineName.form-control(required maxlength='120')
                     label(for='demoNewMachinePrice') Oyun fiyatı (TL)
                     input#demoNewMachinePrice.form-control(type='number' min='0.01' step='0.01' required)
-                    button.btn.btn-primary.mt-2.mb-3(type='submit') Demo makine ekle
-                h2.h5 Demo kart okuma süreleri
+                    button.btn.btn-primary.mt-2.mb-3(type='submit') Makine ekle
+                h2.h5 Kart okuma süreleri
                 p.small Aşağıdaki makine seçimindeki cihaza uygulanır; süren beklemeler değiştirilmez.
                 form#demoTimingForm
                     label(for='demoCardRemovedMs') Kartın çekildiğini doğrulama süresi (ms)
                     input#demoCardRemovedMs.form-control(type='number' min='0' max='60000' step='1' required)
                     label(for='demoPaymentCooldownMs') Başarılı ödemeler arası bekleme (ms)
                     input#demoPaymentCooldownMs.form-control(type='number' min='0' max='60000' step='1' required)
-                    button.btn.btn-primary.mt-2.mb-3(type='submit') Demo sürelerini kaydet
-                h2.h5 Demo LED ayarı
-                p.small Aşağıdaki seçili makineye aittir; 0–255 yalnızca sanal parlaklık ölçeğidir. Gerçek LED'e aktarılmaz.
+                    button.btn.btn-primary.mt-2.mb-3(type='submit') Süreleri kaydet
+                h2.h5 LED ayarı
+                p.small Seçili makineye aittir; ayar henüz gerçek LED'e aktarılmaz.
                 form#demoLedForm
                     label
                         input#demoLedEnabled(type='checkbox')
-                        |  Sanal LED etkin
-                    label(for='demoLedBrightness') Sanal parlaklık (0–255)
+                        |  LED etkin
+                    label(for='demoLedBrightness') Parlaklık (0–255)
                     input#demoLedBrightness.form-control(type='number' min='0' max='255' step='1' required)
-                    button.btn.btn-primary.mt-2.mb-3(type='submit') Demo LED ayarını kaydet
+                    button.btn.btn-primary.mt-2.mb-3(type='submit') LED ayarını kaydet
                 p#demoSettingsStatus
                 h2.h5 Makine ayarları
                 form#demoMachineForm
@@ -325,12 +325,12 @@ body.bg-dark.text-white(class=(typeof demoMode !== 'undefined' && demoMode ? 'de
                     div.d-flex.justify-content-center
                         div.d-flex.align-items-center.justify-content-center.pr-2
                             i.fas.fa-credit-card
-                        span Register
+                        span #{typeof demoMode !== 'undefined' && demoMode ? 'Müşteri oluştur' : 'Register'}
                 a.btn(href='#', data-toggle='modal', data-target='#depositModal').py-4.col.text-white
                     div.d-flex.justify-content-center
                         div.d-flex.align-items-center.justify-content-center.pr-2
                             i.fas.fa-coins
-                        span Deposit
+                        span #{typeof demoMode !== 'undefined' && demoMode ? 'Bakiye yükle' : 'Deposit'}
             div.btn-group.btn-group-lg.mt-2(class=(typeof demoMode !== 'undefined' && demoMode ? 'demo-hidden' : ''))
                 a.btn.btn-info.rounded-left.col.disabled(href='#')
                     div.d-flex.justify-content-center
@@ -401,7 +401,7 @@ body.bg-dark.text-white(class=(typeof demoMode !== 'undefined' && demoMode ? 'de
         div.modal-dialog.text-dark
             div.modal-content
                 div.modal-header.bg-success.text-white.py-2
-                    h5.modal-title #{typeof demoMode !== 'undefined' && demoMode ? 'Demo hesap ve sanal kart oluştur' : 'Register Customer'}
+                    h5.modal-title #{typeof demoMode !== 'undefined' && demoMode ? 'Müşteri ve kart oluştur' : 'Register Customer'}
                     button.close(type='button', data-dismiss='modal')
                         span &times;
                 div.modal-body
@@ -416,15 +416,19 @@ body.bg-dark.text-white(class=(typeof demoMode !== 'undefined' && demoMode ? 'de
                                         div.d-flex.justify-content-center
                                             div.d-flex.align-items-center.justify-content-center.pr-2
                                                 i.fas.fa-user-cog
-                                            span Customer Info
+                                            span #{typeof demoMode !== 'undefined' && demoMode ? 'Müşteri bilgileri' : 'Customer Info'}
                             #collapseUserInfo.collapse.show(aria-labelledby='headerUserInfo' data-parent='#registerAccordion')
                                 .card-body
                                     .form-group
                                         label(for='userID') Customer ID:
                                         input#userID.form-control(type='text', name='cardName', placeholder="Leave blank for random")
                                     .form-group
-                                        label(for='userName') Customer Name:
-                                        input#userName.form-control(type='text', name='cardName', placeholder="Customer Name")
+                                        label(for='userName') #{typeof demoMode !== 'undefined' && demoMode ? 'Müşteri adı soyadı' : 'Customer Name:'}
+                                        input#userName.form-control(type='text', name='cardName', placeholder=(typeof demoMode !== 'undefined' && demoMode ? 'Ad soyad' : 'Customer Name'))
+                                    if typeof demoMode !== 'undefined' && demoMode
+                                        .form-group
+                                            label(for='cardNum') Kart numarası
+                                            input#cardNum.form-control(type='text', name='cardName', placeholder='Kart numarasını elle girin', autocomplete='off')
                                     .form-group
                                         label(for='userContact') Contact Info:
                                         input#userContact.form-control(type='text', name='cardName', placeholder="Name, Phone Number, Etc.")
@@ -443,7 +447,8 @@ body.bg-dark.text-white(class=(typeof demoMode !== 'undefined' && demoMode ? 'de
                                 .card-body
                                     .form-group
                                         label(for='cardName') Serial Number:
-                                        input#cardNum.form-control(type='text', name='cardName', placeholder=(typeof demoMode !== 'undefined' && demoMode ? 'Sanal kart UID (ör. 00112233)' : 'Leave blank to Scan'))
+                                        if typeof demoMode === 'undefined' || !demoMode
+                                            input#cardNum.form-control(type='text', name='cardName', placeholder='Leave blank to Scan')
                                     .form-group
                                         label(for='cardName') Card Name:
                                         input#cardName.form-control(type='text', name='cardName', placeholder="Friendly name for card")
@@ -451,8 +456,8 @@ body.bg-dark.text-white(class=(typeof demoMode !== 'undefined' && demoMode ? 'de
                                         label(for='cardName') Contact Info:
                                         input#cardContact.form-control(type='text', name='cardName', placeholder="Name, Phone Number, Etc.")
                 div.modal-footer
-                    button.btn.btn-secondary(type='button' onclick='clearRegisterUser(); return false;') Cancel
-                    button.btn.btn-primary(type='submit' onclick='registerUser(); return false;') Create
+                    button.btn.btn-secondary(type='button' onclick='clearRegisterUser(); return false;') #{typeof demoMode !== 'undefined' && demoMode ? 'İptal' : 'Cancel'}
+                    button.btn.btn-primary(type='submit' onclick='registerUser(); return false;') #{typeof demoMode !== 'undefined' && demoMode ? 'Kaydet' : 'Create'}
     div.modal#findUserModal(tabindex='-1' role='dialog')
         div.modal-dialog.text-dark
             div.modal-content
@@ -500,7 +505,7 @@ body.bg-dark.text-white(class=(typeof demoMode !== 'undefined' && demoMode ? 'de
         div.modal-dialog.text-dark
             div.modal-content
                 div.modal-header.bg-success.text-white.py-2
-                    h5.modal-title Deposit Credits
+                    h5.modal-title #{typeof demoMode !== 'undefined' && demoMode ? 'Bakiye yükle' : 'Deposit Credits'}
                     button.close(type='button', data-dismiss='modal')
                         span &times;
                 div.modal-body
@@ -516,7 +521,7 @@ body.bg-dark.text-white(class=(typeof demoMode !== 'undefined' && demoMode ? 'de
                             #collapseDepositCredits.collapse.show(aria-labelledby='headerDepositCredits' data-parent='#typeAccordion')
                                 .card-body
                                     .form-group
-                                        label(for='depositBalance') #{typeof demoMode !== 'undefined' && demoMode ? 'Demo tutar (TL):' : 'Credits:'}
+                                        label(for='depositBalance') #{typeof demoMode !== 'undefined' && demoMode ? 'Tutar (TL):' : 'Credits:'}
                                         input#depositBalance.form-control.form-control-lg(type='number', step=(typeof demoMode !== 'undefined' && demoMode ? '0.01' : undefined), min=(typeof demoMode !== 'undefined' && demoMode ? '0' : undefined), name='depositBalance', placeholder=(typeof demoMode !== 'undefined' && demoMode ? '0' : '0 Credits'))
                         .card
                             #headerDepositFreeplay.card-header

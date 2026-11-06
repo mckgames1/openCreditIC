@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>mck_mifare — Faz 1 Demo</title>
+  <title>mck_mifare — Makine testi</title>
   <link rel="stylesheet" href="/phase1/styles.css">
 </head>
 <body>
@@ -12,18 +12,18 @@
       <p class="eyebrow">mck_mifare</p>
       <h1>Yerel kredi merkezi</h1>
     </div>
-    <div class="badges"><span class="badge warning">DEMO</span><span class="badge">GERÇEK DONANIM DEĞİL</span></div>
+    <div class="badges"><span class="badge warning">MAKİNE TESTİ</span></div>
   </header>
 
   <main class="container">
-    <p><a href="/phase1/home">Mevcut yönetim ekranında demo yükleme</a></p>
+    <p><a href="/phase1/home">Yönetim ekranına dön</a></p>
     <section id="notice" class="notice" hidden></section>
 
     <section id="auth-panel" class="auth-grid">
       <article id="setup-card" class="panel" hidden>
         <p class="eyebrow">İlk çalıştırma</p>
         <h2>Yönetici oluştur</h2>
-        <p class="muted">Bu yerel demo için ilk yönetici hesabını oluşturun. Sabit parola kullanılmaz.</p>
+        <p class="muted">İlk yönetici hesabını oluşturun. Sabit parola kullanılmaz.</p>
         <form id="setup-form" class="stack">
           <label>Kullanıcı adı<input name="username" autocomplete="username" required minlength="3" value="admin"></label>
           <label>Parola<input name="password" type="password" autocomplete="new-password" required minlength="10"></label>
@@ -48,34 +48,34 @@
       </div>
 
       <div class="grid three">
-        <article class="panel stat"><span class="eyebrow">Demo bakiye</span><strong id="balance">0,00 TL</strong><small id="account-label">—</small></article>
+        <article class="panel stat"><span class="eyebrow">Bakiye</span><strong id="balance">0,00 TL</strong><small id="account-label">—</small></article>
         <article class="panel stat"><span class="eyebrow">Makine fiyatı</span><strong id="machine-price">0,00 TL</strong><small id="machine-label">—</small></article>
         <article class="panel stat"><span class="eyebrow">Özet</span><strong id="ledger-count">0 işlem</strong><small id="pulse-count">0 pulse komutu</small></article>
       </div>
 
       <div class="grid two">
         <article class="panel">
-          <div class="panel-heading"><div><p class="eyebrow">Bakiye çekirdeği</p><h2>Demo yükleme</h2></div><span class="badge">KURUŞ</span></div>
+          <div class="panel-heading"><div><p class="eyebrow">Hesap</p><h2>Bakiye yükleme</h2></div><span class="badge">KURUŞ</span></div>
           <form id="topup-form" class="stack">
             <label>Tutar (TL)<input name="amountTl" type="text" inputmode="decimal" value="200,00" required></label>
             <label>Hesap<select name="accountId" id="account-select"></select></label>
-            <label>Kart UID<select name="cardUid" id="card-select"></select></label>
+            <label>Kart numarası<select name="cardUid" id="card-select"></select></label>
             <button class="primary" type="submit">Bakiye yükle</button>
           </form>
           <p id="sim-topup-pending" class="notice" hidden></p>
           <button id="sim-topup-retry" class="secondary" type="button" hidden>Bekleyen yüklemeyi doğrula</button>
-          <p class="muted tiny">Demo hareketleri yerel SQLite veritabanında tutulur. Gerçek kayıtlar kullanılmaz.</p>
+          <p class="muted tiny">Hareketler yerel veritabanında tutulur.</p>
         </article>
 
         <article class="panel">
-          <div class="panel-heading"><div><p class="eyebrow">Makine okuyucusu</p><h2>Sanal kart simülatörü</h2></div><span id="sim-led" class="led off"></span></div>
+          <div class="panel-heading"><div><p class="eyebrow">Makine okuyucusu</p><h2>Kart ve makine testi</h2></div><span id="sim-led" class="led off"></span></div>
           <div class="simulator-layout">
-            <div class="device-screen" aria-label="128 x 160 oranında sanal cihaz ekranı"><div id="screen-state">KARTINIZI<br>OKUTUN</div><small>128 × 160 oranı</small></div>
+            <div class="device-screen" aria-label="Cihaz test ekranı"><div id="screen-state">KARTINIZI<br>OKUTUN</div><small>128 × 160 oranı</small></div>
             <div class="stack compact">
-              <label>Demo makine<select id="sim-machine-select"></select></label>
+              <label>Makine<select id="sim-machine-select"></select></label>
               <p id="sim-settings-status" class="muted tiny"></p>
-              <div id="sim-settings-actions" class="button-row" hidden><button id="sim-settings-apply" class="secondary" type="button">Sanal uygulandı</button><button id="sim-settings-fail" class="secondary" type="button">Sanal başarısız</button></div>
-              <label>Kart UID<select name="simCardUid" id="sim-card-select"></select></label>
+              <div id="sim-settings-actions" class="button-row" hidden><button id="sim-settings-apply" class="secondary" type="button">Testte uygulandı</button><button id="sim-settings-fail" class="secondary" type="button">Testte başarısız</button></div>
+              <label>Kart numarası<select name="simCardUid" id="sim-card-select"></select></label>
               <label><span>Merkez bağlantısı</span><select id="sim-connection"><option value="online">Bağlı</option><option value="offline">Kesik (simülasyon)</option></select></label>
               <div class="button-row"><button id="approach" class="secondary" type="button">Yaklaştır</button><button id="hold" class="secondary" type="button">Tut</button><button id="remove" class="secondary" type="button">Çek</button></div>
               <button id="pay" class="primary" type="button">Ödeme isteği gönder</button>
@@ -104,7 +104,7 @@
             <label>Darbeler arası boşluk (ms)<input name="pulseGapMs" type="number" min="0" value="100"></label>
             <button class="primary" type="submit">Makine ayarını kaydet</button>
           </form>
-          <div class="admin-actions"><button id="lock-card" class="danger" type="button">Demo kartı kilitle</button><button id="unlock-card" class="secondary" type="button">Kilidi aç</button></div>
+          <div class="admin-actions"><button id="lock-card" class="danger" type="button">Kartı kilitle</button><button id="unlock-card" class="secondary" type="button">Kilidi aç</button></div>
         </article>
       </div>
 

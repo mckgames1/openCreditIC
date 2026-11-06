@@ -72,7 +72,7 @@ function verifyPassword(password, encoded) {
 function normalizeUid(value) {
   const uid = String(value || '').trim().toUpperCase();
   if (!/^[A-Z0-9:_-]{1,128}$/.test(uid)) {
-    throw new DomainError('invalid_card_uid', 'Kart UID biçimi geçersiz. Baştaki sıfırlar korunur.');
+    throw new DomainError('invalid_card_uid', 'Kart numarası geçersiz. Harf, rakam, iki nokta, alt çizgi veya tire kullanın. Baştaki sıfırlar korunur.');
   }
   return uid;
 }

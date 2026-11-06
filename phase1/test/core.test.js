@@ -82,7 +82,7 @@ test('pulse validation and card UID normalization keep hardware assumptions expl
   try {
     assert.throws(() => store.updateMachine('DEMO-MACHINE', { pulseMs: 9 }, null), /pulse_ms/);
     assert.equal(store.getCard('  demo-0001 ').uid, 'DEMO-0001');
-    assert.throws(() => store.getCard('1234/unsafe'), /UID/);
+    assert.throws(() => store.getCard('1234/unsafe'), /Kart numarası/);
   } finally { store.close(); }
 });
 

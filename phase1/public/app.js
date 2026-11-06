@@ -73,8 +73,8 @@ function render(data) {
   const account = data.accounts[0];
   fillSelect($('#sim-machine-select'), data.machines, item => item.id, item => item.name);
   const machine = data.machines.find(item => item.id === selectedMachine()) || data.machines[0];
-  const statusLabels = { pending: 'Bekliyor', applied: 'Sanal olarak uygulandı', failed: 'Sanal uygulama başarısız' };
-  $('#sim-settings-status').textContent = machine ? `Sürüm ${machine.settings_version}, sanal LED raporu: ${statusLabels[machine.settings_status]}. Gerçek cihaz doğrulaması yok.` : '';
+  const statusLabels = { pending: 'Bekliyor', applied: 'Testte uygulandı', failed: 'Test başarısız' };
+  $('#sim-settings-status').textContent = machine ? `Sürüm ${machine.settings_version}, test LED raporu: ${statusLabels[machine.settings_status]}. Gerçek cihaz doğrulaması yok.` : '';
   $('#sim-settings-actions').hidden = data.user.role !== 'admin';
   $('#balance').textContent = money(account?.tl_balance_cents);
   $('#account-label').textContent = account ? `${account.name} · ${account.id}` : 'Hesap yok';
@@ -135,9 +135,9 @@ function showPendingTopup() {
     $('#sim-topup-pending').hidden = !pending;
     $('#sim-topup-retry').hidden = !pending;
     if (pending) $('#sim-topup-pending').textContent = state.data?.user?.id === pending.userId
-      ? `Sonucu bilinmeyen demo yükleme: ${pending.body.cardUid} · ${pending.body.amountTl} TL · İstek kimliği: ${pending.body.idempotencyKey}. Aynı kullanıcıyla doğrulayın; yeni yükleme başlatılamaz.`
-      : 'Bu tarayıcıda başka bir kullanıcının bekleyen demo yüklemesi var; işlemi başlatan kullanıcıyla doğrulayın.';
-  } catch (_) { $('#sim-topup-pending').hidden = false; $('#sim-topup-retry').hidden = true; $('#sim-topup-pending').textContent = 'Bekleyen demo kaydı okunamıyor; yeni yükleme başlatılmadı. Tarayıcı verisini silmeyin ve durumu inceleyin.'; }
+      ? `Sonucu bilinmeyen yükleme: ${pending.body.cardUid} · ${pending.body.amountTl} TL · İstek kimliği: ${pending.body.idempotencyKey}. Aynı kullanıcıyla doğrulayın; yeni yükleme başlatılamaz.`
+      : 'Bu tarayıcıda başka bir kullanıcının bekleyen yüklemesi var; işlemi başlatan kullanıcıyla doğrulayın.';
+  } catch (_) { $('#sim-topup-pending').hidden = false; $('#sim-topup-retry').hidden = true; $('#sim-topup-pending').textContent = 'Bekleyen kaydı okunamıyor; yeni yükleme başlatılmadı. Tarayıcı verisini silmeyin ve durumu inceleyin.'; }
 }
 
 async function sendPendingTopup() {
@@ -155,7 +155,7 @@ async function sendPendingTopup() {
     const data = await api('/api/demo/topup-intents/execute', { method: 'POST', body: JSON.stringify({ intentId: pending.body.idempotencyKey }) });
     PendingDemoTopups.clear(pending);
     showPendingTopup();
-    showNotice(`${data.duplicate ? 'Önceki yükleme doğrulandı' : 'Demo yükleme tamamlandı'}: ${data.amountTl} TL; bakiye ${data.balanceAfterTl} TL.`);
+    showNotice(`${data.duplicate ? 'Önceki yükleme doğrulandı' : 'Yükleme tamamlandı'}: ${data.amountTl} TL; bakiye ${data.balanceAfterTl} TL.`);
     await refresh();
   } catch (error) {
     showNotice(`${error.message} Kayıt korunuyor; sonuç belirsizse inceleyin ve aynı istekle doğrulayın.`, true);
@@ -229,7 +229,7 @@ async function simulatedSettingsResult(status) {
   try {
     await api(`/api/demo/machines/${encodeURIComponent(machine.id)}/settings-result`, { method: 'POST', body: JSON.stringify({ version: machine.settings_version, status }) });
     await refresh();
-    showNotice('Sanal ayar sonucu kaydedildi; gerçek cihaza aktarılmadı.');
+    showNotice('Test sonucu kaydedildi; gerçek cihaza aktarılmadı.');
   } catch (error) { showNotice(error.message, true); await refresh(); }
   finally { buttons.forEach(button => { button.disabled = false; }); }
 }
@@ -249,10 +249,10 @@ $('#topup-form').addEventListener('submit', async (event) => {
   try { if (pendingTopup()) return showNotice('Önce bekleyen yüklemeyi doğrulayın.', true); }
   catch (_) { showPendingTopup(); return; }
   const body = Object.fromEntries(new FormData(event.currentTarget));
-  if (!PendingDemoTopups.validAmount(body.amountTl)) return showNotice('Geçerli pozitif demo tutarı girin (en fazla iki ondalık).', true);
+  if (!PendingDemoTopups.validAmount(body.amountTl)) return showNotice('Geçerli pozitif tutarı girin (en fazla iki ondalık).', true);
   body.idempotencyKey = idempotency('topup');
   try { PendingDemoTopups.save({ userId: state.data.user.id, body }); }
-  catch (_) { return showNotice('Demo isteği tarayıcıya kaydedilemedi; yükleme gönderilmedi.', true); }
+  catch (_) { return showNotice('isteği tarayıcıya kaydedilemedi; yükleme gönderilmedi.', true); }
   showPendingTopup();
   await sendPendingTopup();
 });

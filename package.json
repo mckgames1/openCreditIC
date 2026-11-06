@@ -8,6 +8,7 @@
     "start": "node ./card-server.js",
     "phase1": "node ./phase1/start-demo.js",
     "phase1:backup": "node ./phase1/scripts/backup.js",
+    "phase1:restore": "node ./phase1/scripts/restore.js",
     "test": "node --test phase1/test/*.test.js"
   },
   "dependencies": {

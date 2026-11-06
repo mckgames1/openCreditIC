@@ -16,7 +16,7 @@ Personel ana sayfada demo yükleme yapar ve son 25 kendi hareketini görür. İ�
 
 ## Test kanıtı
 
-`npm test` sonucu: **15 test geçti, 0 başarısız**. Ödeme transaction'ında bakiye güncellemesinden sonra, commit öncesinde ve commit sonrasında süreç SIGKILL ile durdurularak SQLite yeniden açma ve aynı istek tekrarı test edildi. Yönetici incelemesi için yetki, gerekçe, aynı ve farklı içerikle tekrar ile sunucu yeniden başlatma test edildi. Fiyat/pulse sınırları ve başlamış işlem ayarının korunması test edildi. İki personelin işlem geçmişi ayrımı, denetim kaydı, yetki ve kalıcılığı test edildi. Chromium'da ödeme yanıtının kesilmesi ve tekrar test edildi; inceleme ekranı henüz tarayıcıda test edilmedi.
+`npm test` sonucu: **17 test geçti, 0 başarısız**. Canlı WAL veritabanından tutarlı yedek, yeni dosyaya geri yükleme, bakiye, komut ve tekrar kimliğinin korunması test edildi. Ödeme transaction'ında bakiye güncellemesinden sonra, commit öncesinde ve commit sonrasında süreç SIGKILL ile durdurularak SQLite yeniden açma ve aynı istek tekrarı test edildi. Yönetici incelemesi için yetki, gerekçe, aynı ve farklı içerikle tekrar ile sunucu yeniden başlatma test edildi. Fiyat/pulse sınırları ve başlamış işlem ayarının korunması test edildi. İki personelin işlem geçmişi ayrımı, denetim kaydı, yetki ve kalıcılığı test edildi. Chromium'da ödeme yanıtının kesilmesi ve tekrar test edildi; inceleme ekranı henüz tarayıcıda test edilmedi.
 
 Kapsanan akışlar: 200 TL yükleme, 25 TL ödeme, tekrar istek, art arda iki ödeme denemesi, kartı tutarken tekrar yaklaştırma, yetersiz bakiye, demo modunda eski yolların reddi, legacy modunda bir route'un varlığı, fiyat snapshot'ı, yeniden açılışta kalıcılık ve personel API yetki reddi. İki bağımsız cihazın gerçek eşzamanlı yarışı test edilmedi.
 
@@ -36,10 +36,11 @@ Yedek:
 
 ```text
 npm run phase1:backup -- --output phase1-backups/demo-copy.sqlite
+npm run phase1:restore -- --source phase1-backups/demo-copy.sqlite --output phase1-backups/restored-check.sqlite
 ```
 
-Kaynak veritabanını durdurmadan restore yapılmaz; yedek doğrulandıktan sonra yeni bir hedef dosyada kontrollü geri yükleme yapılır. Gerçek `cards.json` veya `history.json` bu Faz 1’e otomatik aktarılmaz.
+Yedekleme çalışan SQLite veritabanından tutarlı anlık görüntü alır. Geri yükleme sadece yeni dosyaya yapılır; mevcut veritabanını değiştirmez. Hedef veya SQLite yan dosyası varsa işlem reddedilir. Hata sırasında ayrılmış boş veya eksik hedef dosyası kalabilir; otomatik silinmez, doğrulanmadan kullanılmamalıdır. Geri yüklenen kopyayı ayrı ortamda doğrulayın; çalışan veritabanını değiştirmeyin. Gerçek `cards.json` veya `history.json` otomatik aktarılmaz.
 
 ## Sınırlar
 
-Gerçek RFID, ESP32, TFT, LED, ticket hattı, GPIO, fiziksel pulse, POS, bulut ve internetten erişim doğrulanmadı. Belirsiz komut `ambiguous` durumunda kalır; yönetici karar ve gerekçesi ayrı kaydedilir. Bakiye düzeltmesi veya iade henüz uygulanmamıştır. Gerçek fiziksel pulse sonucu atomik olarak garanti edilemez. Çift tıklamalı yükleme, backup restore, gerçek eşzamanlılık ve çevrimdışı ağ testleri eksiktir. “Üretime hazır” iddiası yoktur.
+Gerçek RFID, ESP32, TFT, LED, ticket hattı, GPIO, fiziksel pulse, POS, bulut ve internetten erişim doğrulanmadı. Belirsiz komut `ambiguous` durumunda kalır; yönetici karar ve gerekçesi ayrı kaydedilir. Bakiye düzeltmesi veya iade henüz uygulanmamıştır. Gerçek fiziksel pulse sonucu atomik olarak garanti edilemez. Çift tıklamalı yükleme, gerçek eşzamanlılık ve çevrimdışı ağ testleri eksiktir. “Üretime hazır” iddiası yoktur.

@@ -26,6 +26,8 @@ Demo yüklemede bekleyen istek aynı tarayıcı profilinin kalıcı depolamasın
 
 36 Linux otomatik testi geçti. Chromium kalıcı profiliyle sunucuya ulaşan ancak yanıtı kaybolan yükleme, tarayıcı ve sunucu yeniden başlatma, başka kullanıcının reddi, sunucuya hiç ulaşmayan isteğin diğer demo ekranından doğrulanması ve bozuk kayıtla gönderimin engellenmesi denendi. Windows ve gerçek ağ/donanım test edilmedi.
 
+Yöneticiye bilinen demo yükleme istek kimliğiyle salt okunur merkez kaydı sorgusu eklendi. Bulunan kayıt tutar, kullanıcı ve işlem sonrası hesap bakiyesini gösterir; kayıt yokken veya tutarsızken sonuç bilinmiyor olarak kalır. Sorgu yeni işlem üretmez. Bekleyen ekran yalnız işlemin sahibine istek kimliğini gösterir. İstek kimliğinin başka cihazda kendiliğinden kurtarılması, sunucuya ulaşmamış isteğin merkezi kaydı ve gerçek para desteği yoktur. 37 Linux testi ve Chromium ile kayıtlı/bilinmeyen sorgu doğrulandı.
+
 Yönetici aynı sayfada seçili demo kartı engelleyebilir veya engelini kaldırabilir. Tekrarlanan aynı durum isteği ikinci denetim olayı üretmez; engelli kart ödeme yapamaz. Chromium ve HTTP testleriyle doğrulandı.
 
 Ana sayfada seçili demo hesaba başka sanal UID bağlanabilir; kartlar aynı bakiyeyi paylaşır. Tekrarlanan bağlama isteği aynı sonucu döndürür, UID yeniden farklı hesaba atanmaz. Chromium'da iki kartın ortak bakiyesi ve HTTP testinde yeniden başlatma doğrulandı. Fiziksel okuyucu bağlantısı yoktur.

@@ -263,6 +263,12 @@ function createApp({ store, standalone = true }) {
     res.status(result.duplicate ? 200 : 201).json({ ...result, amountTl: formatMoney(result.amountCents), balanceAfterTl: formatMoney(result.balanceAfterCents) });
   }));
 
+  // POST keeps the request identifier out of URLs; this endpoint never mutates data.
+  app.post('/api/admin/topups/lookup', requireAuth, requireRole('admin'), handle(async (req, res) => {
+    res.set('Cache-Control', 'no-store');
+    res.json({ ok: true, ...store.lookupDemoTopup(req.body.idempotencyKey) });
+  }));
+
   app.post('/api/admin/corrections', requireAuth, requireRole('admin'), handle(async (req, res) => {
     if (!['add', 'subtract'].includes(req.body.direction)) throw new DomainError('invalid_direction', 'Düzeltme yönü geçersiz.');
     const amount = parseMoneyCents(req.body.amountTl, 'düzeltme');

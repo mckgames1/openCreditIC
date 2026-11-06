@@ -39,7 +39,8 @@
     if (!isAdmin) {
       reportRequest++;
       detailRequest++;
-      for (const id of ['demoResetIssueResult', 'demoReportTotals', 'demoReportCommands', 'demoReportChart', 'demoReportMachines', 'demoPulseRows', 'demoDetailRows', 'demoDetailStatus']) document.getElementById(id).replaceChildren();
+      for (const id of ['demoResetIssueResult', 'demoReportTotals', 'demoReportCommands', 'demoReportChart', 'demoReportMachines', 'demoPulseRows', 'demoDetailRows', 'demoDetailStatus', 'demoTopupLookupResult']) document.getElementById(id).replaceChildren();
+      document.getElementById('demoTopupLookupKey').value = '';
     }
     document.getElementById('demoHistory').hidden = false;
     document.getElementById('demoHistoryScope').textContent = isAdmin ? 'Son 25 demo hareketi' : 'Son 25 kendi demo hareketiniz';
@@ -128,6 +129,23 @@
       await refreshDetails();
     }
   }
+  document.getElementById('demoTopupLookupForm').addEventListener('submit', async event => {
+    event.preventDefault();
+    const button = event.currentTarget.querySelector('button');
+    const result = document.getElementById('demoTopupLookupResult');
+    const requestingUser = currentUser?.id;
+    button.disabled = true; result.textContent = '';
+    try {
+      const data = await api('admin/topups/lookup', { idempotencyKey: document.getElementById('demoTopupLookupKey').value.trim() });
+      if (currentUser?.id !== requestingUser || currentUser?.role !== 'admin') return;
+      if (data.status === 'recorded') {
+        const entry = data.entry;
+        result.textContent = `Merkezde demo yükleme kaydı var: ${entry.id} · ${entry.created_at} UTC · ${entry.actor || 'Kullanıcı belirtilmemiş'} · ${entry.card_uid || 'Kart belirtilmemiş'} · ${(entry.amount_cents / 100).toFixed(2)} TL. İşlem sonrası hesap bakiyesi: ${(entry.balance_after_cents / 100).toFixed(2)} TL; bu güncel bakiye olmayabilir.`;
+      } else if (data.status === 'inconsistent') result.textContent = 'Kayıt tutarsız; sonuç doğrulanamadı. İnceleme gerekir, otomatik işlem yapılmadı.';
+      else result.textContent = 'Merkezde bu kimlikle doğrulanmış yükleme bulunamadı. Sonuç bilinmiyor: istek ulaşmamış veya sürüyor olabilir; yeni yükleme ya da iade yapılmadı.';
+    } catch (error) { if (currentUser?.id === requestingUser && currentUser?.role === 'admin') result.textContent = `Sorgu tamamlanamadı: ${error.message} Sonuç bilinmiyor.`; }
+    finally { button.disabled = false; }
+  });
   function detailQuery() {
     const query = new URLSearchParams();
     for (const [name, id] of [['from', 'demoDetailFrom'], ['to', 'demoDetailTo'], ['machineId', 'demoDetailMachine'], ['type', 'demoDetailType']]) {
@@ -517,7 +535,7 @@
       message.hidden = !pending;
       retry.hidden = !pending;
       if (pending) message.textContent = currentUser?.id === pending.userId
-        ? `Sonucu bilinmeyen demo yükleme: ${pending.body.cardUid} · ${pending.body.amountTl} TL. Aynı kullanıcıyla doğrulayın; yeni yükleme başlatılamaz.`
+        ? `Sonucu bilinmeyen demo yükleme: ${pending.body.cardUid} · ${pending.body.amountTl} TL · İstek kimliği: ${pending.body.idempotencyKey}. Aynı kullanıcıyla doğrulayın; yeni yükleme başlatılamaz.`
         : 'Bu tarayıcıda başka bir kullanıcının bekleyen demo yüklemesi var; işlemi başlatan kullanıcıyla doğrulayın.';
     } catch (_) { message.hidden = false; retry.hidden = true; message.textContent = 'Bekleyen demo kaydı okunamıyor; yeni yükleme başlatılmadı. Tarayıcı verisini silmeyin ve durumu inceleyin.'; }
   }

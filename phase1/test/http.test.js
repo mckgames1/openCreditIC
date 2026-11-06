@@ -732,3 +732,51 @@ test('lost topup response can only be retried by original user after restart', a
     assert.equal(running.store.listLedger().filter(entry => entry.entry_type === 'topup').length, 1);
   } finally { await running.close(); }
 });
+
+test('admin-only read-only topup lookup reports confirmed, unknown and inconsistent results', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencredit-lookup-'));
+  const databasePath = path.join(dir, 'demo.sqlite');
+  let running = startServer({ host: '127.0.0.1', port: 0, databasePath });
+  await new Promise(resolve => running.server.once('listening', resolve));
+  let base = `http://127.0.0.1:${running.server.address().port}`;
+  const post = (url, body, cookie) => jsonRequest(base, url, { method: 'POST', body: JSON.stringify(body) }, cookie);
+  try {
+    const admin = (await post('/phase1/api/setup', { username: 'admin', password: 'correct horse battery staple' })).cookie;
+    await post('/phase1/api/admin/users', { username: 'staff', password: 'staff password 1', role: 'staff' }, admin);
+    const staff = (await post('/phase1/api/auth/login', { username: 'staff', password: 'staff password 1' })).cookie;
+    const endpoint = '/phase1/api/admin/topups/lookup';
+    const key = 'topup-lookup-test-001';
+    assert.equal((await post(endpoint, { idempotencyKey: key })).response.status, 401);
+    assert.equal((await post(endpoint, { idempotencyKey: key }, staff)).response.status, 403);
+    assert.equal((await post(endpoint, { idempotencyKey: 'bad' }, admin)).response.status, 400);
+    assert.equal((await post(endpoint, { idempotencyKey: key }, admin)).data.status, 'unknown');
+    const { DatabaseSync } = require('node:sqlite');
+    const db = new DatabaseSync(databasePath);
+    db.exec('BEGIN IMMEDIATE');
+    db.prepare("INSERT INTO idempotency_keys(idempotency_key,operation,request_hash,response_json,created_at) VALUES (?, 'topup', 'test', '{}', ?)").run(key, new Date().toISOString());
+    assert.equal((await post(endpoint, { idempotencyKey: key }, admin)).data.status, 'unknown');
+    db.exec('ROLLBACK');
+    const body = { accountId: 'demo-account', cardUid: 'DEMO-0001', amountTl: '25', idempotencyKey: key };
+    const first = await post('/phase1/api/topups', body, staff);
+    const priorCount = running.store.summary().ledger_count;
+    const found = await post(endpoint, { idempotencyKey: key }, admin);
+    assert.equal(found.response.headers.get('cache-control'), 'no-store');
+    assert.equal(found.data.status, 'recorded');
+    assert.equal(found.data.entry.id, first.data.entryId);
+    assert.equal(found.data.entry.amount_cents, 2500);
+    assert.equal(found.data.entry.actor, 'staff');
+    assert.equal(running.store.summary().ledger_count, priorCount);
+    const saved = db.prepare('SELECT response_json FROM idempotency_keys WHERE idempotency_key = ?').get(key).response_json;
+    db.prepare('UPDATE idempotency_keys SET response_json = ? WHERE idempotency_key = ?').run('{}', key);
+    assert.equal((await post(endpoint, { idempotencyKey: key }, admin)).data.status, 'inconsistent');
+    db.prepare('UPDATE idempotency_keys SET response_json = ? WHERE idempotency_key = ?').run(saved, key);
+    db.close();
+    await running.close();
+    running = startServer({ host: '127.0.0.1', port: 0, databasePath });
+    await new Promise(resolve => running.server.once('listening', resolve));
+    base = `http://127.0.0.1:${running.server.address().port}`;
+    assert.equal((await post(endpoint, { idempotencyKey: key }, admin)).data.status, 'recorded');
+    assert.equal(running.store.getAccount('demo-account').tl_balance_cents, 2500);
+    assert.equal(running.store.summary().ledger_count, priorCount);
+  } finally { await running.close(); }
+});

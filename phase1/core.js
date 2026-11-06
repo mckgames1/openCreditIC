@@ -630,6 +630,20 @@ function createStore(databasePath, options = {}) {
     return row ? { operation: row.operation, response: JSON.parse(row.response_json), createdAt: row.created_at } : null;
   }
 
+  function lookupDemoTopup(idempotencyKey) {
+    if (typeof idempotencyKey !== 'string' || !/^[A-Za-z0-9._:-]{8,200}$/.test(idempotencyKey)) throw new DomainError('invalid_idempotency_key', 'İstek kimliği 8–200 güvenli karakter olmalıdır.');
+    const entry = one(`SELECT i.response_json, l.id, l.created_at, l.account_id, l.card_uid, l.amount_cents,
+      l.balance_after_cents, l.entry_type, u.username AS actor
+      FROM idempotency_keys i LEFT JOIN ledger_entries l ON l.idempotency_key = i.idempotency_key || ':ledger'
+      LEFT JOIN users u ON u.id = l.actor_user_id
+      WHERE i.idempotency_key = $key AND i.operation = 'topup'`, { $key: idempotencyKey });
+    if (!entry) return { status: 'unknown' };
+    let response;
+    try { response = JSON.parse(entry.response_json); } catch (_) { return { status: 'inconsistent' }; }
+    if (!entry.id || entry.entry_type !== 'topup' || response.entryId !== entry.id || response.accountId !== entry.account_id || response.amountCents !== entry.amount_cents || response.balanceAfterCents !== entry.balance_after_cents) return { status: 'inconsistent' };
+    return { status: 'recorded', entry: { id: entry.id, created_at: entry.created_at, account_id: entry.account_id, card_uid: entry.card_uid, amount_cents: entry.amount_cents, balance_after_cents: entry.balance_after_cents, actor: entry.actor } };
+  }
+
   function simulatePulse(commandId, outcome, actorUserId = null) {
     if (!['succeeded', 'response_lost', 'connection_lost', 'failed'].includes(outcome)) {
       throw new DomainError('invalid_pulse_outcome', 'Geçersiz simülasyon sonucu.');
@@ -817,7 +831,7 @@ function createStore(databasePath, options = {}) {
     dbPath: resolvedPath, close, getConfig, setConfig, createUser, authenticate, sessionUser, revokeSession, setStaffLocked, issueDemoPasswordReset, completeDemoPasswordReset,
     createAccount, createDemoAccountCard, attachDemoCard, getAccount, listAccounts, createCard, getCard, setCardLock, listCards,
     createMachine, getMachine, updateMachine, setMachineTiming, setMachineLed, reportSimulatedSettings, listMachines, topUp, correctBalance, pay, getPulseCommand, simulatePulse,
-    retryPulse, reviewPulse, listPulseReviews, getIdempotency, listLedger, detailedLedger, listPulses, summary, periodReport, getUserCount: () => one('SELECT COUNT(*) AS count FROM users').count,
+    retryPulse, reviewPulse, listPulseReviews, getIdempotency, lookupDemoTopup, listLedger, detailedLedger, listPulses, summary, periodReport, getUserCount: () => one('SELECT COUNT(*) AS count FROM users').count,
     getUsers: () => many('SELECT id, username, role, locked, created_at FROM users ORDER BY created_at'),
     getDemoState: getDeviceState,
     setDemoState: setDeviceState,

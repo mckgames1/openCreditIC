@@ -135,7 +135,7 @@ function showPendingTopup() {
     $('#sim-topup-pending').hidden = !pending;
     $('#sim-topup-retry').hidden = !pending;
     if (pending) $('#sim-topup-pending').textContent = state.data?.user?.id === pending.userId
-      ? `Sonucu bilinmeyen demo yükleme: ${pending.body.cardUid} · ${pending.body.amountTl} TL. Aynı kullanıcıyla doğrulayın; yeni yükleme başlatılamaz.`
+      ? `Sonucu bilinmeyen demo yükleme: ${pending.body.cardUid} · ${pending.body.amountTl} TL · İstek kimliği: ${pending.body.idempotencyKey}. Aynı kullanıcıyla doğrulayın; yeni yükleme başlatılamaz.`
       : 'Bu tarayıcıda başka bir kullanıcının bekleyen demo yüklemesi var; işlemi başlatan kullanıcıyla doğrulayın.';
   } catch (_) { $('#sim-topup-pending').hidden = false; $('#sim-topup-retry').hidden = true; $('#sim-topup-pending').textContent = 'Bekleyen demo kaydı okunamıyor; yeni yükleme başlatılmadı. Tarayıcı verisini silmeyin ve durumu inceleyin.'; }
 }

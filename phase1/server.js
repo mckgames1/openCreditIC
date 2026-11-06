@@ -206,7 +206,7 @@ function createApp({ store, standalone = true }) {
   }));
 
   app.post('/api/demo/register', requireAuth, requireRole('admin', 'staff'), handle(async (req, res) => {
-    const result = store.createDemoAccountCard({ name: req.body.name, uid: req.body.uid, idempotencyKey: req.body.idempotencyKey, actorUserId: req.user.id });
+    const result = store.createDemoAccountCard({ name: req.body.name, phone: req.body.phone, uid: req.body.uid, idempotencyKey: req.body.idempotencyKey, actorUserId: req.user.id });
     res.status(result.duplicate ? 200 : 201).json(result);
   }));
 

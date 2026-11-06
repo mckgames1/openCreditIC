@@ -137,12 +137,14 @@ test('new demo account and card flow remains idempotent through topup and play',
   try {
     const setup = await jsonRequest(base, '/phase1/api/setup', { method: 'POST', body: JSON.stringify({ username: 'admin', password: 'correct horse battery staple' }) });
     const cookie = setup.cookie;
-    const register = { name: 'Deneme', uid: '00112233', idempotencyKey: 'registration-test-001' };
+    const register = { name: 'Deneme', phone: '0555 000 00 00', uid: '00112233', idempotencyKey: 'registration-test-001' };
     const first = await jsonRequest(base, '/phase1/api/demo/register', { method: 'POST', body: JSON.stringify(register) }, cookie);
     assert.equal(first.response.status, 201);
+    assert.equal(first.data.account.phone, register.phone);
     const repeat = await jsonRequest(base, '/phase1/api/demo/register', { method: 'POST', body: JSON.stringify(register) }, cookie);
     assert.equal(repeat.data.account.id, first.data.account.id);
     assert.equal(repeat.data.duplicate, true);
+    assert.equal(running.store.getAccount(first.data.account.id).phone, register.phone);
     const topup = { accountId: first.data.account.id, cardUid: register.uid, amountTl: '25.00', idempotencyKey: 'new-card-topup-001' };
     await demoTopup(base, topup, cookie);
     const dupTopup = await demoTopup(base, topup, cookie);
@@ -741,6 +743,8 @@ test('admin detailed history filters, paginates and exports safely without trunc
     const filtered = await jsonRequest(base, endpoint + query + '&machineId=DEVICE-B&type=game_charge', {}, admin);
     assert.equal(filtered.data.total, 1);
     assert.equal(filtered.data.rows[0].amount_cents, -2500);
+    assert.equal(filtered.data.rows[0].account_name, 'Demo Hesap');
+    assert.equal(filtered.data.rows[0].card_uid, 'DEMO-0001');
     assert.equal((await jsonRequest(base, endpoint + query + '&machineId=DEVICE-B&type=topup', {}, admin)).data.total, 0);
     const csvResponse = await fetch(`${base}${endpoint}.csv${query}`, { headers: { Cookie: admin } });
     assert.equal(csvResponse.status, 200);

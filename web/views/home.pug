@@ -42,7 +42,7 @@ head
     if typeof demoMode !== 'undefined' && demoMode
         link(rel='stylesheet' href='/static/css/demo-panel.css')
         style.
-            .demo-hidden, #findUserModal, #showUserModel, #showFreePlayModel, #headerDepositFreeplay, #collapseDepositFreeplay, #depositAccordion, #newCardModal #initialBalance, #newCardModal label[for='initialBalance'], #newCardModal #userID, #newCardModal label[for='userID'], #newCardModal #userContact, #newCardModal label[for='userContact'], #newCardModal #userNotes, #newCardModal label[for='cardName'] ~ input:not(#cardNum) { display: none !important; }
+            .demo-hidden, #findUserModal, #showUserModel, #showFreePlayModel, #headerDepositFreeplay, #collapseDepositFreeplay, #depositAccordion, #newCardModal #initialBalance, #newCardModal label[for='initialBalance'], #newCardModal #userID, #newCardModal label[for='userID'], #newCardModal #userNotes, #newCardModal label[for='cardName'] ~ input:not(#cardNum) { display: none !important; }
         script(src='/phase1/pending-topup.js' defer)
         script(src='/static/js/demo-home.js' defer)
         script(src='/static/js/demo-panel.js' defer)
@@ -58,6 +58,11 @@ body.bg-dark.text-white(class=(typeof demoMode !== 'undefined' && demoMode ? 'de
                 a(href='#demoHistory') Son hareketler
                 a(href='#demoAdmin') Yönetici işlemleri
                 a(href='/phase1/') Makine testi
+            section#turnoverBox.turnover-box(hidden aria-label='Toplam yükleme cirosu')
+                div
+                    span Toplam yükleme cirosu
+                    strong#turnoverValue —
+                button#turnoverToggle.btn.btn-outline-primary(type='button' aria-pressed='false' title='Yalnızca bu tutarı gizler; raporları gizlemez') Gizle
             section.demo-quick-actions(aria-label='Hızlı işlemler')
                 div
                     p.demo-eyebrow GÜNLÜK İŞLEMLER
@@ -181,6 +186,7 @@ body.bg-dark.text-white(class=(typeof demoMode !== 'undefined' && demoMode ? 'de
                             tr
                                 th Zaman (UTC)
                                 th İşlem
+                                th Müşteri / kart
                                 th Tutar (TL)
                                 th İşlem sonrası hesap bakiyesi
                                 th Cihaz / test komutu durumu
@@ -430,10 +436,10 @@ body.bg-dark.text-white(class=(typeof demoMode !== 'undefined' && demoMode ? 'de
                                             label(for='cardNum') Kart numarası
                                             input#cardNum.form-control(type='text', name='cardName', placeholder='Kart numarasını elle girin', autocomplete='off')
                                     .form-group
-                                        label(for='userContact') Contact Info:
-                                        input#userContact.form-control(type='text', name='cardName', placeholder="Name, Phone Number, Etc.")
+                                        label(for='userContact') #{typeof demoMode !== 'undefined' && demoMode ? 'Telefon' : 'Contact Info:'}
+                                        input#userContact.form-control(type='text', name='cardName', maxlength='40', placeholder=(typeof demoMode !== 'undefined' && demoMode ? 'Telefon numarası' : 'Name, Phone Number, Etc.'))
                                     .form-group
-                                        label(for='userContact') Notes:
+                                        label(for='userNotes' class=(typeof demoMode !== 'undefined' && demoMode ? 'demo-hidden' : '')) Notes:
                                         textarea#userNotes.form-control(rows=3, name='userNotes', placeholder="")
                         .card
                             #headingTwo.card-header

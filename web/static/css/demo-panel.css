@@ -16,6 +16,10 @@
 .demo-navigation { display: flex; flex-wrap: wrap; gap: .6rem; margin: 20px 0; }
 .demo-navigation a { color: #d1dce1; border: 1px solid var(--demo-border); border-radius: 8px; padding: .55rem .9rem; text-decoration: none; }
 .demo-navigation a:hover, .demo-navigation a:focus-visible { color: var(--demo-accent); border-color: var(--demo-accent); }
+.turnover-box { margin: 0 0 16px auto; display: flex; align-items: center; gap: 16px; justify-content: flex-end; }
+.turnover-box div { display: grid; text-align: right; }
+.turnover-box span { color: #c3d0d7; font-size: .85rem; }
+.turnover-box strong { font-size: 1.3rem; color: var(--demo-accent); }
 .demo-quick-actions { background: linear-gradient(110deg,#1d1034,#11151b 70%); border: 1px solid #604779; border-radius: 14px; padding: 24px; display: flex; justify-content: space-between; align-items: center; gap: 20px; }
 .demo-quick-actions h2 { font-size: 1.45rem; margin: 0 0 .5rem; }
 .demo-quick-actions p { margin: 0; color: #b6c6cd; }

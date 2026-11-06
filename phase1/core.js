@@ -106,17 +106,18 @@ function formatMoney(cents) {
 function createStore(databasePath, options = {}) {
   const resolvedPath = path.resolve(databasePath);
   fs.mkdirSync(path.dirname(resolvedPath), { recursive: true });
-  // Back up existing v1/v2 demo databases before any schema change.
+  // Back up existing databases before schema changes.
   if (fs.existsSync(resolvedPath) && fs.statSync(resolvedPath).size > 0) {
     const probe = new DatabaseSync(resolvedPath, { readOnly: true });
-    let needsBackup;
+    let backupVersion;
     try {
       probe.exec('PRAGMA busy_timeout = 5000');
-      needsBackup = !probe.prepare('SELECT version FROM schema_migrations WHERE version = 3').get();
+      if (!probe.prepare('SELECT version FROM schema_migrations WHERE version = 3').get()) backupVersion = 3;
+      else if (!probe.prepare('SELECT version FROM schema_migrations WHERE version = 4').get()) backupVersion = 4;
     } finally { probe.close(); }
-    if (needsBackup) {
+    if (backupVersion) {
       const { snapshot } = require('./scripts/snapshot');
-      snapshot(resolvedPath, `${resolvedPath}.before-v3-${crypto.randomUUID()}.sqlite`);
+      snapshot(resolvedPath, `${resolvedPath}.before-v${backupVersion}-${crypto.randomUUID()}.sqlite`);
     }
   }
   const db = new DatabaseSync(resolvedPath);
@@ -307,17 +308,20 @@ function createStore(databasePath, options = {}) {
     });
   }
 
-  function createAccount({ name, actorUserId = null }) {
+  function createAccount({ name, phone = '', actorUserId = null }) {
     const normalizedName = String(name || '').trim();
+    const normalizedPhone = String(phone || '').trim();
     if (normalizedName.length < 2 || normalizedName.length > 120) throw new DomainError('invalid_account_name', 'Hesap adı 2–120 karakter olmalıdır.');
+    if (normalizedPhone.length > 40) throw new DomainError('invalid_phone', 'Telefon en fazla 40 karakter olmalıdır.');
     const id = makeId('acct');
     run('INSERT INTO accounts (id, name, created_at) VALUES ($id, $name, $createdAt)', { $id: id, $name: normalizedName, $createdAt: isoNow() });
+    if (normalizedPhone) run('INSERT INTO account_contacts (account_id, phone) VALUES ($id, $phone)', { $id: id, $phone: normalizedPhone });
     audit('account.created', actorUserId, { accountId: id });
     return getAccount(id);
   }
 
   function getAccount(id) {
-    const account = one('SELECT * FROM accounts WHERE id = $id', { $id: id });
+    const account = one('SELECT a.*, c.phone FROM accounts a LEFT JOIN account_contacts c ON c.account_id = a.id WHERE a.id = $id', { $id: id });
     if (!account) throw new DomainError('account_not_found', 'Hesap bulunamadı.', 404);
     return account;
   }
@@ -344,12 +348,13 @@ function createStore(databasePath, options = {}) {
     return card;
   }
 
-  function createDemoAccountCard({ name, uid, idempotencyKey, actorUserId }) {
+  function createDemoAccountCard({ name, phone, uid, idempotencyKey, actorUserId }) {
     const payload = { name: String(name || '').trim(), uid: normalizeUid(uid) };
+    if (String(phone || '').trim()) payload.phone = String(phone).trim();
     return withImmediateTransaction(() => {
       const key = ensureIdempotency(idempotencyKey, 'demo_registration', payload);
       if (key.duplicate) return { ...key.response, duplicate: true };
-      const account = createAccount({ name: payload.name, actorUserId });
+      const account = createAccount({ name: payload.name, phone: payload.phone, actorUserId });
       const card = createCard({ uid: payload.uid, accountId: account.id, actorUserId });
       const response = { ok: true, account, card };
       saveIdempotency(key.key, 'demo_registration', key.hash, response);
@@ -790,7 +795,7 @@ function createStore(databasePath, options = {}) {
   }
 
   function listAccounts() {
-    return many(`SELECT a.*, COUNT(c.uid) AS card_count FROM accounts a LEFT JOIN cards c ON c.account_id = a.id
+    return many(`SELECT a.*, contact.phone, COUNT(c.uid) AS card_count FROM accounts a LEFT JOIN account_contacts contact ON contact.account_id = a.id LEFT JOIN cards c ON c.account_id = a.id
                  GROUP BY a.id ORDER BY a.created_at DESC`);
   }
 
@@ -838,7 +843,7 @@ function createStore(databasePath, options = {}) {
     if (type) { conditions.push('l.entry_type = $type'); params.$type = type; }
     const where = conditions.length ? 'WHERE ' + conditions.join(' AND ') : '';
     const joins = `FROM ledger_entries l LEFT JOIN pulse_commands p ON l.idempotency_key = p.idempotency_key || ':ledger'
-      LEFT JOIN machines m ON m.id = p.machine_id LEFT JOIN users u ON u.id = l.actor_user_id`;
+      LEFT JOIN machines m ON m.id = p.machine_id LEFT JOIN users u ON u.id = l.actor_user_id LEFT JOIN accounts a ON a.id = l.account_id`;
     // Keep the count and exported rows in one read snapshot, even if another process writes.
     db.exec('BEGIN');
     try {
@@ -846,7 +851,7 @@ function createStore(databasePath, options = {}) {
       const limit = exportAll ? 5000 : 25;
       if (exportAll && count > limit) throw new DomainError('export_limit', 'CSV için en fazla 5000 hareket seçin; tarih veya diğer filtreleri daraltın.', 400);
       const rows = many(`SELECT l.id, l.created_at, l.entry_type, l.amount_cents, l.balance_after_cents,
-        l.account_id, l.card_uid, l.note, u.username AS actor, p.id AS command_id,
+        l.account_id, a.name AS account_name, l.card_uid, l.note, u.username AS actor, p.id AS command_id,
         p.machine_id, m.name AS machine_name, p.status AS command_status
         ${joins} ${where} ORDER BY l.created_at DESC, l.id DESC LIMIT $limit OFFSET $offset`, { ...params, $limit: limit, $offset: exportAll ? 0 : (page - 1) * limit });
       db.exec('COMMIT');
@@ -1000,6 +1005,10 @@ function migrate(db) {
         INSERT INTO device_timing SELECT id, COALESCE((SELECT CAST(value AS INTEGER) FROM settings WHERE key='card_removed_ms'), 1000), COALESCE((SELECT CAST(value AS INTEGER) FROM settings WHERE key='payment_cooldown_ms'), 500) FROM machines;
         INSERT INTO device_simulator_state SELECT 'DEMO-MACHINE', card_uid, present, removed_at_ms, eligible_at_ms, payment_latched, last_payment_at_ms, CASE WHEN last_payment_at_ms = 0 THEN 0 ELSE last_payment_at_ms + COALESCE((SELECT CAST(value AS INTEGER) FROM settings WHERE key='payment_cooldown_ms'), 500) END, updated_at FROM simulator_state WHERE id=1 AND EXISTS (SELECT 1 FROM machines WHERE id='DEMO-MACHINE');`);
       db.prepare('INSERT INTO schema_migrations(version, applied_at) VALUES(3, $now)').run({ $now: isoNow() });
+    }
+    if (!db.prepare('SELECT version FROM schema_migrations WHERE version = 4').get()) {
+      db.exec('CREATE TABLE account_contacts (account_id TEXT PRIMARY KEY REFERENCES accounts(id), phone TEXT NOT NULL)');
+      db.prepare('INSERT INTO schema_migrations(version, applied_at) VALUES(4, $now)').run({ $now: isoNow() });
     }
     db.exec('COMMIT');
   } catch (error) { db.exec('ROLLBACK'); throw error; }

@@ -10,6 +10,17 @@
   let topupHistoryRequest = 0;
   let intentRequest = 0;
   let detailPage = 1;
+  let turnoverAmount = '';
+  let turnoverHidden = false;
+  const turnoverBox = document.getElementById('turnoverBox');
+  const turnoverValue = document.getElementById('turnoverValue');
+  const turnoverToggle = document.getElementById('turnoverToggle');
+  function showTurnover() {
+    turnoverValue.textContent = turnoverHidden ? '***' : turnoverAmount;
+    turnoverToggle.textContent = turnoverHidden ? 'Göster' : 'Gizle';
+    turnoverToggle.setAttribute('aria-pressed', String(turnoverHidden));
+  }
+  turnoverToggle.addEventListener('click', () => { turnoverHidden = !turnoverHidden; showTurnover(); });
   const notice = document.getElementById('demoNotice');
   const tell = message => { notice.textContent = message; };
   async function api(path, body, method = 'POST') {
@@ -42,10 +53,12 @@
     card = data.cards.find(item => item.uid === select.value) || data.cards[0];
     account = data.accounts.find(item => item.id === card?.account_id);
     if (!account) throw new Error('Kart bulunamadı.');
-    document.getElementById('demoAccount').textContent = `${account.name} · Kart ${card.uid} · Bakiye ${(account.tl_balance_cents / 100).toFixed(2)} TL`;
+    document.getElementById('demoAccount').textContent = `${account.name}${account.phone ? ' · Telefon ' + account.phone : ''} · Kart ${card.uid} · Bakiye ${(account.tl_balance_cents / 100).toFixed(2)} TL`;
     showPending();
     showPendingCardLink();
     const isAdmin = data.user.role === 'admin';
+    turnoverBox.hidden = !isAdmin;
+    if (!isAdmin) { turnoverAmount = ''; turnoverValue.textContent = ''; }
     if (!isAdmin) {
       reportRequest++;
       detailRequest++;
@@ -121,6 +134,7 @@
       document.getElementById('demoCardStatus').textContent = `${card.uid}: ${card.locked ? 'Engelli' : 'Aktif'}`;
       document.getElementById('demoCardLock').textContent = card.locked ? 'Kart engelini kaldır' : 'Kartı engelle';
       const tl = value => (Number(value) / 100).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' TL';
+      turnoverAmount = tl(data.summary.topups_cents); showTurnover();
       document.getElementById('demoTotals').textContent = `Yükleme: ${tl(data.summary.topups_cents)} · Harcama: ${tl(data.summary.game_charges_cents)} · Net düzeltme: ${tl(data.summary.corrections_cents)} · Ücretsiz oyun: ${data.summary.free_plays_count} adet · Kalan bakiye: ${tl(data.accounts.reduce((sum, item) => sum + item.tl_balance_cents, 0))}`;
       showPendingFreePlay();
       await refreshReport();
@@ -234,7 +248,7 @@
         const row = document.createElement('tr');
         const device = entry.machine_id ? `${entry.machine_name || entry.machine_id} (${entry.machine_id}) / ${statuses[entry.command_status] || 'Komut kaydı yok'}` : '—';
         const type = (types[entry.entry_type] || entry.entry_type) + (entry.entry_type === 'free_play' && entry.note ? ` — ${entry.note}` : '');
-        for (const value of [entry.created_at, type, (entry.amount_cents / 100).toFixed(2), (entry.balance_after_cents / 100).toFixed(2) + ' TL', device, entry.id]) {
+        for (const value of [entry.created_at, type, `${entry.account_name || '—'} / ${entry.card_uid || '—'}`, (entry.amount_cents / 100).toFixed(2), (entry.balance_after_cents / 100).toFixed(2) + ' TL', device, entry.id]) {
           const cell = document.createElement('td'); cell.textContent = value; row.append(cell);
         }
         tbody.append(row);
@@ -615,7 +629,7 @@
     button.disabled = true;
     registerKey ||= 'registration-' + crypto.randomUUID();
     try {
-      const result = await api('demo/register', { name: document.getElementById('userName').value, uid: document.getElementById('cardNum').value, idempotencyKey: registerKey });
+      const result = await api('demo/register', { name: document.getElementById('userName').value, phone: document.getElementById('userContact').value, uid: document.getElementById('cardNum').value, idempotencyKey: registerKey });
       registerKey = null;
       await refresh(result.card.uid);
       tell('Müşteri ve kart oluşturuldu.');
@@ -623,7 +637,7 @@
     } catch (error) { tell(error.message + ' Aynı isteği tekrar deneyebilirsiniz.'); }
     finally { button.disabled = false; }
   };
-  for (const id of ['userName', 'cardNum']) document.getElementById(id).addEventListener('input', () => { registerKey = null; });
+  for (const id of ['userName', 'userContact', 'cardNum']) document.getElementById(id).addEventListener('input', () => { registerKey = null; });
   document.getElementById('demoLogin').addEventListener('submit', async event => {
     event.preventDefault();
     try {

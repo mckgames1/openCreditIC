@@ -30,6 +30,7 @@ test('v2 demo data is backed up before copying timing settings to each device', 
   const migrated = createStore(file);
   try {
     assert.equal(migrated.getAccount('demo-account').tl_balance_cents, 12345);
+    assert.equal(migrated.getAccount('demo-account').phone, null);
     assert.equal(migrated.getMachine('DEMO-MACHINE').card_removed_ms, 2345);
     assert.equal(migrated.getMachine('DEVICE-B').payment_cooldown_ms, 4567);
     assert.equal(migrated.getMachine('DEVICE-B').settings_version, 7);
@@ -42,5 +43,28 @@ test('v2 demo data is backed up before copying timing settings to each device', 
   assert.equal(backup.prepare('SELECT tl_balance_cents FROM accounts WHERE id = ?').get('demo-account').tl_balance_cents, 12345);
   assert.equal(backup.prepare('SELECT value FROM settings WHERE key = ?').get('card_removed_ms').value, '2345');
   assert.equal(backup.prepare('SELECT COUNT(*) AS n FROM schema_migrations WHERE version = 3').get().n, 0);
+  backup.close();
+});
+
+test('v3 database is backed up before adding customer contacts', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencredit-v3-'));
+  const file = path.join(dir, 'test.sqlite');
+  const store = createStore(file);
+  store.topUp({ accountId: 'demo-account', amountCents: 7500, idempotencyKey: 'v3-backup-topup' });
+  store.close();
+  // This temporary synthetic fixture emulates the prior schema, not user data.
+  const fixture = new DatabaseSync(file);
+  fixture.exec('DROP TABLE account_contacts; DELETE FROM schema_migrations WHERE version = 4');
+  fixture.close();
+  const migrated = createStore(file);
+  try {
+    assert.equal(migrated.getAccount('demo-account').tl_balance_cents, 7500);
+    assert.equal(migrated.getAccount('demo-account').phone, null);
+  } finally { migrated.close(); }
+  const backups = fs.readdirSync(dir).filter(name => name.startsWith('test.sqlite.before-v4-'));
+  assert.equal(backups.length, 1);
+  const backup = new DatabaseSync(path.join(dir, backups[0]), { readOnly: true });
+  assert.equal(backup.prepare('SELECT tl_balance_cents FROM accounts WHERE id = ?').get('demo-account').tl_balance_cents, 7500);
+  assert.equal(backup.prepare('SELECT COUNT(*) AS n FROM schema_migrations WHERE version = 4').get().n, 0);
   backup.close();
 });

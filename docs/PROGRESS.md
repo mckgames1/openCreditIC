@@ -6,13 +6,13 @@ Temel commit: `c96727c2d76d54179b67c1fcc34fc4cb1a8a5466`
 
 ## Durum
 
-Faz 1’in yerel gösterilebilir prototipi tamamlandı. Demo aynı mevcut Express projesine `/phase1` altında mount edilebilir; legacy JSON/Pug akışı korunmuştur. Demo veritabanı `phase1-data/demo.sqlite` altında, gerçek kullanıcı verilerinden ayrı tutulur.
+Faz 1 tamamlanmadı; yerel demo geliştirme aşamasındadır. `npm run phase1` mevcut sunucu girişini demo modunda başlatır, Pug görünümü sunar ve legacy route'ları kaydetmez. Normal `npm start` legacy modudur. Demo veritabanı `phase1-data/demo.sqlite` altında ayrıdır.
 
 ## Test kanıtı
 
-`node --test phase1/test/*.test.js` sonucu: **6 test geçti, 0 başarısız**.
+`npm test` sonucu: **8 test geçti, 0 başarısız**.
 
-Kapsanan kritik akışlar: 200 TL yükleme ve 25 TL ödeme sonrası 175 TL, aynı idempotency anahtarında ikinci düşüm/pulse olmaması, iki ödeme yarışında en fazla bir onay, kart çekilmeden yeni ödeme reddi, belirsiz pulse’ın aynı komutla yeniden denenmesi, pulse süresi sınırı, UID normalizasyonu, fiyat ayarı snapshot’ı, yeniden açılışta kalıcılık ve personel API yetki reddi.
+Kapsanan akışlar: 200 TL yükleme, 25 TL ödeme, tekrar istek, art arda iki ödeme denemesi, kartı tutarken tekrar yaklaştırma, yetersiz bakiye, demo modunda eski yolların reddi, legacy modunda bir route'un varlığı, fiyat snapshot'ı, yeniden açılışta kalıcılık ve personel API yetki reddi. İki bağımsız cihazın gerçek eşzamanlı yarışı test edilmedi.
 
 Bağımlılık kurulumu `NPM_CONFIG_CACHE=/tmp/opencreditic-npm-cache npm ci` ile tamamlandı. Node.js `v24.22.1`; paket gereksinimi `>=22.5.0` çünkü Faz 1 yerleşik `node:sqlite` kullanır.
 
@@ -24,7 +24,7 @@ npm run phase1
 ```
 
 Tarayıcı: `http://127.0.0.1:1787/phase1`  
-Mevcut legacy sunucu ile: `node card-server.js` sonrası `http://localhost:1777/phase1` (yerel `config.json` mevcut olmalıdır).
+`npm start` legacy JSON modunu açar, demo ekranını sunmaz ve tüm ağ arayüzlerini dinler.
 
 Yedek:
 
@@ -36,4 +36,4 @@ Kaynak veritabanını durdurmadan restore yapılmaz; yedek doğrulandıktan sonr
 
 ## Sınırlar
 
-Gerçek RFID, ESP32, TFT, LED, ticket hattı, GPIO, fiziksel pulse, POS, bulut ve internetten erişim doğrulanmadı ve çalışıyor gibi sunulmuyor. “Üretime hazır” iddiası yoktur.
+Gerçek RFID, ESP32, TFT, LED, ticket hattı, GPIO, fiziksel pulse, POS, bulut ve internetten erişim doğrulanmadı. Fiziksel pulse tekrarının güvenliği ve belirsiz sonuçların yetkili incelemesi uygulanmış değildir. Simülatör ödeme kilidi ve ödeme kaydı ayrı işlemlerdir; çökme aralığı incelenmelidir. Çift tıklamalı yükleme, backup restore, gerçek eşzamanlılık ve çevrimdışı ağ testleri eksiktir. “Üretime hazır” iddiası yoktur.

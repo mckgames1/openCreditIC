@@ -1,3 +1,18 @@
+if (process.env.OPENCREDIT_MODE === 'demo') {
+    const express = require('express');
+    const path = require('path');
+    const { createStore } = require('./phase1/core');
+    const { createApp } = require('./phase1/server');
+    const app = express();
+    app.set('view engine', 'pug');
+    app.set('views', path.join(__dirname, 'web/views'));
+    const store = createStore(process.env.PHASE1_DB_PATH || path.join(__dirname, 'phase1-data/demo.sqlite'));
+    app.use('/phase1', createApp({ store, standalone: false }));
+    app.get('/', (_req, res) => res.redirect('/phase1/'));
+    // Fail closed: no legacy JSON routes are registered in demo mode.
+    app.use((_req, res) => res.status(404).send('Demo modunda bu yol kullanılamaz.'));
+    app.listen(Number(process.env.PHASE1_PORT || 1787), '127.0.0.1', () => console.log('Demo: http://127.0.0.1:' + (process.env.PHASE1_PORT || 1787) + '/phase1/'));
+} else {
 const fs = require("fs");
 const config = require('./config.json');
 const express = require('express');
@@ -5,8 +20,6 @@ const moment = require('moment');
 const app = express();
 const sleep = (waitTimeInMs) => new Promise(resolve => setTimeout(resolve, waitTimeInMs));
 const request = require('request').defaults({ encoding: null });
-const { createStore: createPhase1Store } = require('./phase1/core');
-const { createApp: createPhase1App } = require('./phase1/server');
 const port = 1777;
 if (!fs.existsSync('./cards.json')) {
     fs.writeFileSync("./cards.json", JSON.stringify({
@@ -230,10 +243,6 @@ app.get('/', manageAuth, (req, res) => {
 app.use('/static', express.static('./web/static', ));
 app.use('/ui_static', express.static('./ui_images', ));
 
-// Faz 1 is mounted into the existing Express server. The legacy JSON/Pug flow above
-// remains available for compatibility; the new SQLite demo is isolated at /phase1.
-const phase1Store = createPhase1Store(process.env.PHASE1_DB_PATH || './phase1-data/demo.sqlite');
-app.use('/phase1', createPhase1App({ store: phase1Store, standalone: false }));
 // Should only be called by a cabinet
 app.get(['/get/machine/:machine_id/:mode', '/get/machine/:machine_id'], readerAuth, (req, res) => {
     if (db.cards && db.users) {
@@ -2153,3 +2162,4 @@ app.get('/set/arcade/japanese/:value', manageAuth, (req, res) => {
 app.listen(port, () => {
     console.log(`Card server is running on http://0.0.0.0:${port}`);
 });
+}

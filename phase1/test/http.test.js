@@ -33,6 +33,9 @@ test('local demo flow enforces card removal and repeats one payment safely', asy
     result = await jsonRequest(base, '/phase1/api/demo/payment', { method: 'POST', body: JSON.stringify({ machineId: 'DEMO-MACHINE', cardUid: 'DEMO-0001', idempotencyKey: 'http-payment-001' }) }, cookie);
     assert.equal(result.response.status, 201);
     const pulseId = result.data.pulseCommandId;
+    await jsonRequest(base, '/phase1/api/demo/simulator/card', { method: 'POST', body: JSON.stringify({ action: 'approach', cardUid: 'DEMO-0001' }) }, cookie);
+    result = await jsonRequest(base, '/phase1/api/demo/payment', { method: 'POST', body: JSON.stringify({ machineId: 'DEMO-MACHINE', cardUid: 'DEMO-0001', idempotencyKey: 'http-held-payment-001' }) }, cookie);
+    assert.equal(result.response.status, 409);
     result = await jsonRequest(base, '/phase1/api/demo/payment', { method: 'POST', body: JSON.stringify({ machineId: 'DEMO-MACHINE', cardUid: 'DEMO-0001', idempotencyKey: 'http-payment-001' }) }, cookie);
     assert.equal(result.response.status, 200);
     assert.equal(result.data.duplicate, true);
@@ -51,4 +54,19 @@ test('local demo flow enforces card removal and repeats one payment safely', asy
   } finally {
     await running.close();
   }
+});
+
+test('insufficient balance is reported as a rejected payment', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencreditic-negative-'));
+  const running = startServer({ host: '127.0.0.1', port: 0, databasePath: path.join(dir, 'demo.sqlite') });
+  await new Promise((resolve) => running.server.once('listening', resolve));
+  const base = `http://127.0.0.1:${running.server.address().port}`;
+  try {
+    const setup = await jsonRequest(base, '/phase1/api/setup', { method: 'POST', body: JSON.stringify({ username: 'admin', password: 'correct horse battery staple' }) });
+    await jsonRequest(base, '/phase1/api/demo/simulator/card', { method: 'POST', body: JSON.stringify({ action: 'approach', cardUid: 'DEMO-0001' }) }, setup.cookie);
+    const result = await jsonRequest(base, '/phase1/api/demo/payment', { method: 'POST', body: JSON.stringify({ machineId: 'DEMO-MACHINE', cardUid: 'DEMO-0001', idempotencyKey: 'insufficient-payment-001' }) }, setup.cookie);
+    assert.equal(result.response.status, 402);
+    assert.equal(result.data.approved, false);
+    assert.equal(running.store.summary().pulseCount, 0);
+  } finally { await running.close(); }
 });

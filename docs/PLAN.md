@@ -17,7 +17,7 @@ Tamamlananlar:
 
 ## Sıradaki tek adım
 
-Faz 2’de donanım profili/pin tablosu ve güvenli ESP32 çıkış protokolünü, panel ve elektriksel ölçümler doğrulandıktan sonra tasarlamak. Gerçek donanım olmadan pulse genişliği, anten menzili veya ticket sayımı kabulü yapılmayacak.
+Faz 1'de ödeme ve simülatör durumunun çökme güvenliğini, eşzamanlılığı ve belirsiz komut incelemesini tamamlayıp eksik kabul testlerini çalıştırmak. Faz 2 henüz başlamaz.
 
 ## Sonraki fazlar
 

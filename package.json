@@ -6,7 +6,7 @@
   },
   "scripts": {
     "start": "node ./card-server.js",
-    "phase1": "node ./phase1/server.js",
+    "phase1": "node ./phase1/start-demo.js",
     "phase1:backup": "node ./phase1/scripts/backup.js",
     "test": "node --test phase1/test/*.test.js"
   },

@@ -55,7 +55,9 @@ function createApp({ store, standalone = true }) {
   app.disable('x-powered-by');
   app.use(express.json({ limit: '32kb' }));
   app.use(express.urlencoded({ extended: false, limit: '32kb' }));
-  app.use(mountPath, express.static(path.join(__dirname, 'public'), { redirect: false }));
+  app.set('view engine', 'pug');
+  app.set('views', path.join(__dirname, '../web/views'));
+  app.use(mountPath, express.static(path.join(__dirname, 'public'), { redirect: false, index: false }));
 
   function sendError(res, error) {
     if (error instanceof DomainError) {
@@ -182,7 +184,8 @@ function createApp({ store, standalone = true }) {
     const config = store.getConfig();
     if (action === 'approach') {
       const withinRemovalWindow = state.card_uid === uid && state.removed_at_ms > 0 && now < state.eligible_at_ms;
-      store.setDemoState({ cardUid: uid, present: true, removedAtMs: state.removed_at_ms, eligibleAtMs: state.eligible_at_ms, paymentLatched: withinRemovalWindow ? true : false, lastPaymentAtMs: state.last_payment_at_ms });
+      if (state.present && state.card_uid !== uid) throw new DomainError('card_already_present', 'Önce mevcut kartı çekin.', 409);
+      store.setDemoState({ cardUid: uid, present: true, removedAtMs: state.removed_at_ms, eligibleAtMs: state.eligible_at_ms, paymentLatched: state.present ? Boolean(state.payment_latched) : withinRemovalWindow, lastPaymentAtMs: state.last_payment_at_ms });
     } else if (action === 'hold') {
       if (!state.present || state.card_uid !== uid) throw new DomainError('card_not_present', 'Önce kartı yaklaştırmalısınız.', 409);
       store.setDemoState({ cardUid: uid, present: true, removedAtMs: state.removed_at_ms, eligibleAtMs: state.eligible_at_ms, paymentLatched: Boolean(state.payment_latched), lastPaymentAtMs: state.last_payment_at_ms });
@@ -233,7 +236,7 @@ function createApp({ store, standalone = true }) {
     res.json({ ok: true, summary: { ...summary, topupsTl: formatMoney(summary.topups_cents), gameChargesTl: formatMoney(summary.game_charges_cents), bonusesTl: formatMoney(summary.bonuses_cents), freePlayTl: formatMoney(summary.free_play_cents) } });
   }));
 
-  app.get(mountPath, (_req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
+  app.get(mountPath, (_req, res) => res.render('phase1'));
   if (standalone) app.get('/', (_req, res) => res.redirect('/phase1'));
   return app;
 }
@@ -249,11 +252,5 @@ function startServer({ host = process.env.PHASE1_HOST || DEFAULT_HOST, port = Nu
   return { app, server, store, close: () => new Promise((resolve, reject) => server.close((error) => { store.close(); error ? reject(error) : resolve(); })) };
 }
 
-if (require.main === module) {
-  const running = startServer();
-  const shutdown = () => running.close().then(() => process.exit(0)).catch(() => process.exit(1));
-  process.once('SIGINT', shutdown);
-  process.once('SIGTERM', shutdown);
-}
-
+// startServer is retained only as a test harness; production entry is card-server.js.
 module.exports = { createApp, startServer };

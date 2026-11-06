@@ -75,7 +75,7 @@ Use something like pm2 or systemd to run as a daemon
 
 ## Faz 1 yerel demo
 
-Faz 1 prototipi mevcut Express projesine `/phase1` altında eklenmiştir. Legacy JSON/Pug akışı korunur; demo verisi ayrı bir SQLite dosyasında tutulur ve gerçek donanıma veya gerçek kullanıcı verisine erişmez.
+Faz 1 demo modu mevcut Express girişinden başlar ve Pug ile gösterilir. Demo SQLite verisi ayrıdır; eski JSON yolları bu modda kayıt edilmez.
 
 ```text
 npm ci
@@ -83,6 +83,8 @@ npm run phase1
 ```
 
 Ardından `http://127.0.0.1:1787/phase1` adresini açın. İlk açılışta yönetici hesabı oluşturulur. Demo arayüzünde `DEMO / GERÇEK DONANIM DEĞİL` ibaresi bulunur; kart yaklaştırma, kartı tutma/çekme, 200 TL yükleme, 25 TL demo ödeme, tekrar istek ve belirsiz pulse sonucu simüle edilebilir.
+
+`npm start` ayrı legacy modudur; mevcut JSON verisi ve eski route'lar kullanılır ve sunucu tüm ağ arayüzlerini dinler. Eski route'lar yeni demo güvenlik garantilerini taşımaz. `npm run phase1` yalnızca localhost üzerinde dinler ve legacy route'ları açmaz; gerçek para veya donanım için kullanmayın.
 
 Faz 1 kapsamı, denetim ve açık sorular için `docs/PROJECT_SPEC.md`, `docs/REPO_AUDIT.md`, `docs/PLAN.md`, `docs/OPEN_QUESTIONS.md` ve `docs/PROGRESS.md` dosyalarına bakın.
 

@@ -19,4 +19,4 @@ ESP32/RC522/TFT/WS2812B firmware’i, gerçek pulse çıkışı, e-ticket donan�
 
 ## Uygulama sınırı
 
-`phase1/` yeni çekirdek ve demo ekranını içerir. `card-server.js` içine `/phase1` altında mount edilir; eski JSON/Pug endpoint’leri uyumluluk için korunur ve yeni güvenli çekirdeğin yerine geçirilmez. `npm run phase1` aynı uygulamayı yalnızca demo için ayrı portta çalıştırır.
+`phase1/` demo çekirdeğini içerir; `npm run phase1` mevcut `card-server.js` girişini demo modunda açar ve Pug görünümünü `/phase1` altında sunar. Bu modda legacy endpoint'ler kayıt edilmez. Normal `npm start` mevcut JSON/Pug akışını kullanır ve yeni SQLite bakiyesi ile bağlantılı değildir.

@@ -138,6 +138,11 @@ async function sendPayment(key = idempotency('payment')) {
   const cardUid = selectedCard();
   try {
     const data = await api('/api/demo/payment', { method: 'POST', body: JSON.stringify({ machineId: 'DEMO-MACHINE', cardUid, idempotencyKey: key }) });
+    if (!data.approved) {
+      showNotice(`Ödeme reddedildi: yetersiz bakiye. Kalan: ${data.balanceAfterTl}.`, true);
+      await refresh();
+      return;
+    }
     state.lastPaymentKey = key;
     state.lastPulseId = data.pulseCommandId || state.lastPulseId;
     $('#repeat-pay').disabled = false;

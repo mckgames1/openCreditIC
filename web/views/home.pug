@@ -111,8 +111,17 @@ body.bg-dark.text-white
                     button.btn.btn-warning.mt-2.mb-3(type='submit') Demo düzeltmeyi kaydet
                 p#demoCorrectionPending.alert.alert-warning(hidden)
                 button#demoCorrectionRetry.btn.btn-warning(type='button' hidden) Bekleyen düzeltmeyi doğrula
+                h2.h5 Demo makine ekle
+                form#demoCreateMachineForm
+                    label(for='demoNewMachineId') Makine kimliği
+                    input#demoNewMachineId.form-control(required pattern='[A-Za-z0-9_-]{2,64}' maxlength='64')
+                    label(for='demoNewMachineName') Makine adı
+                    input#demoNewMachineName.form-control(required maxlength='120')
+                    label(for='demoNewMachinePrice') Oyun fiyatı (TL)
+                    input#demoNewMachinePrice.form-control(type='number' min='0.01' step='0.01' required)
+                    button.btn.btn-primary.mt-2.mb-3(type='submit') Demo makine ekle
                 h2.h5 Demo kart okuma süreleri
-                p.small Bu iki ayar tüm demo simülatörü için ortaktır; cihaz bazında değildir.
+                p.small Aşağıdaki makine seçimindeki cihaza uygulanır; süren beklemeler değiştirilmez.
                 form#demoTimingForm
                     label(for='demoCardRemovedMs') Kartın çekildiğini doğrulama süresi (ms)
                     input#demoCardRemovedMs.form-control(type='number' min='0' max='60000' step='1' required)

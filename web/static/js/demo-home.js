@@ -50,8 +50,6 @@
     }
     document.getElementById('demoAdmin').hidden = !isAdmin;
     if (isAdmin) {
-      document.getElementById('demoCardRemovedMs').value = data.config.card_removed_ms;
-      document.getElementById('demoPaymentCooldownMs').value = data.config.payment_cooldown_ms;
       document.getElementById('demoCardStatus').textContent = `${card.uid}: ${card.locked ? 'Engelli' : 'Aktif'}`;
       document.getElementById('demoCardLock').textContent = card.locked ? 'Kart engelini kaldır' : 'Kartı engelle';
       const tl = value => (Number(value) / 100).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' TL';
@@ -80,15 +78,33 @@
     document.getElementById('demoPulseCount').value = machine.pulse_count;
     document.getElementById('demoPulseGap').value = machine.pulse_gap_ms;
     document.getElementById('demoMachineEnabled').checked = machine.enabled;
+    document.getElementById('demoCardRemovedMs').value = machine.card_removed_ms;
+    document.getElementById('demoPaymentCooldownMs').value = machine.payment_cooldown_ms;
   }
   document.getElementById('demoMachine').addEventListener('change', showMachine);
+  document.getElementById('demoCreateMachineForm').addEventListener('submit', async event => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const button = form.querySelector('button');
+    if (button.disabled) return;
+    button.disabled = true;
+    try {
+      const result = await api('machines', { id: document.getElementById('demoNewMachineId').value, name: document.getElementById('demoNewMachineName').value, priceTl: document.getElementById('demoNewMachinePrice').value });
+      form.reset();
+      await refresh();
+      document.getElementById('demoMachine').value = result.machine.id;
+      showMachine();
+      tell(`Demo makine eklendi: ${result.machine.name}.`);
+    } catch (error) { tell(error.message); }
+    finally { button.disabled = false; }
+  });
   document.getElementById('demoTimingForm').addEventListener('submit', async event => {
     event.preventDefault();
     const button = event.currentTarget.querySelector('button');
     if (button.disabled) return;
     button.disabled = true;
     try {
-      await api('admin/settings', {
+      await api('machines/' + encodeURIComponent(document.getElementById('demoMachine').value) + '/timing', {
         cardRemovedMs: document.getElementById('demoCardRemovedMs').value,
         paymentCooldownMs: document.getElementById('demoPaymentCooldownMs').value
       }, 'PATCH');

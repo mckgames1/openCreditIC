@@ -84,6 +84,19 @@ function formatMoney(cents) {
 function createStore(databasePath, options = {}) {
   const resolvedPath = path.resolve(databasePath);
   fs.mkdirSync(path.dirname(resolvedPath), { recursive: true });
+  // Back up existing v1/v2 demo databases before any schema change.
+  if (fs.existsSync(resolvedPath) && fs.statSync(resolvedPath).size > 0) {
+    const probe = new DatabaseSync(resolvedPath, { readOnly: true });
+    let needsBackup;
+    try {
+      probe.exec('PRAGMA busy_timeout = 5000');
+      needsBackup = !probe.prepare('SELECT version FROM schema_migrations WHERE version = 3').get();
+    } finally { probe.close(); }
+    if (needsBackup) {
+      const { snapshot } = require('./scripts/snapshot');
+      snapshot(resolvedPath, `${resolvedPath}.before-v3-${crypto.randomUUID()}.sqlite`);
+    }
+  }
   const db = new DatabaseSync(resolvedPath);
   db.exec('PRAGMA busy_timeout = 5000; PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;');
   migrate(db);
@@ -310,9 +323,28 @@ function createStore(databasePath, options = {}) {
   }
 
   function getMachine(id) {
-    const machine = one('SELECT * FROM machines WHERE id = $id', { $id: String(id || '').trim().toUpperCase() });
+    const machine = one(`SELECT m.*, COALESCE(t.card_removed_ms, 1000) AS card_removed_ms,
+                        COALESCE(t.payment_cooldown_ms, 500) AS payment_cooldown_ms
+                        FROM machines m LEFT JOIN device_timing t ON t.machine_id = m.id WHERE m.id = $id`, { $id: String(id || '').trim().toUpperCase() });
     if (!machine) throw new DomainError('machine_not_found', 'Makine bulunamadı.', 404);
     return machine;
+  }
+
+  function setMachineTiming(id, changes, actorUserId) {
+    const read = (value, field) => {
+      if (value === null || value === undefined || typeof value === 'boolean' || String(value).trim() === '') throw new DomainError('invalid_value', `${field} boş bırakılamaz.`);
+      return nonNegativeInteger(value, field, { max: 60000 });
+    };
+    const removed = read(changes.cardRemovedMs, 'card_removed_ms');
+    const cooldown = read(changes.paymentCooldownMs, 'payment_cooldown_ms');
+    return withImmediateTransaction(() => {
+      const machine = getMachine(id);
+      run(`INSERT INTO device_timing(machine_id, card_removed_ms, payment_cooldown_ms) VALUES ($id, $removed, $cooldown)
+           ON CONFLICT(machine_id) DO UPDATE SET card_removed_ms = excluded.card_removed_ms, payment_cooldown_ms = excluded.payment_cooldown_ms`, { $id: machine.id, $removed: removed, $cooldown: cooldown });
+      run('UPDATE machines SET settings_version = settings_version + 1, updated_at = $now WHERE id = $id', { $id: machine.id, $now: isoNow() });
+      audit('machine.timing_updated', actorUserId, { machineId: machine.id, cardRemovedMs: removed, paymentCooldownMs: cooldown, settingsVersion: machine.settings_version + 1 });
+      return getMachine(machine.id);
+    });
   }
 
   function updateMachine(id, changes, actorUserId) {
@@ -397,15 +429,14 @@ function createStore(databasePath, options = {}) {
       const idempotency = ensureIdempotency(idempotencyKey, 'payment', payload);
       if (idempotency.duplicate) return { ...idempotency.response, duplicate: true };
       const now = Date.now();
+      const machine = getMachine(payload.machineId);
       if (simulator) {
-        const state = one('SELECT * FROM simulator_state WHERE id = 1');
-        const config = getConfig();
+        const state = getDeviceState(machine.id);
         if (!state.present || state.card_uid !== payload.cardUid) throw new DomainError('card_not_present', 'Kartı yaklaştırıp sabit tutun.', 409);
         if (state.payment_latched) throw new DomainError('card_hold_required', 'Yeni ödeme için kartı çekip yeniden yaklaştırmalısınız.', 409);
         if (now < state.eligible_at_ms) throw new DomainError('card_removed_wait', 'Kartın çekilme bekleme süresi dolmadı.', 409);
-        if (now - state.last_payment_at_ms < config.payment_cooldown_ms) throw new DomainError('payment_cooldown', 'Ödeme soğuma süresi devam ediyor.', 409);
+        if (now < state.cooldown_until_ms) throw new DomainError('payment_cooldown', 'Ödeme soğuma süresi devam ediyor.', 409);
       }
-      const machine = getMachine(payload.machineId);
       const card = getCard(payload.cardUid);
       if (!machine.enabled) throw new DomainError('machine_disabled', 'Makine pasif.', 409);
       if (card.locked || card.account_locked) throw new DomainError('card_locked', 'Kart veya hesap kilitli.', 403);
@@ -438,7 +469,7 @@ function createStore(databasePath, options = {}) {
       });
       const response = { ok: true, approved: true, balanceAfterCents, priceCents, pulseCommandId, settingsVersion: machine.settings_version };
       saveIdempotency(idempotency.key, 'payment', idempotency.hash, response);
-      if (simulator) run('UPDATE simulator_state SET payment_latched = 1, last_payment_at_ms = $now, updated_at = $updatedAt WHERE id = 1', { $now: now, $updatedAt: isoNow() });
+      if (simulator) run('UPDATE device_simulator_state SET payment_latched = 1, last_payment_at_ms = $now, cooldown_until_ms = $until, updated_at = $updatedAt WHERE machine_id = $id', { $now: now, $until: now + machine.payment_cooldown_ms, $updatedAt: isoNow(), $id: machine.id });
       audit('payment.approved', actorUserId, { accountId: card.account_id, cardUid: card.uid, machineId: machine.id, pulseCommandId });
       if (options.testHook) options.testHook('before_commit');
       return response;
@@ -519,7 +550,24 @@ function createStore(databasePath, options = {}) {
                  a.locked AS account_locked FROM cards c JOIN accounts a ON a.id = c.account_id ORDER BY c.created_at DESC`);
   }
 
-  function listMachines() { return many('SELECT * FROM machines ORDER BY id'); }
+  function listMachines() { return many(`SELECT m.*, COALESCE(t.card_removed_ms, 1000) AS card_removed_ms, COALESCE(t.payment_cooldown_ms, 500) AS payment_cooldown_ms FROM machines m LEFT JOIN device_timing t ON t.machine_id = m.id ORDER BY m.id`); }
+
+  function getDeviceState(machineId = 'DEMO-MACHINE') {
+    const machine = getMachine(machineId);
+    run('INSERT OR IGNORE INTO device_simulator_state(machine_id, updated_at) VALUES ($id, $now)', { $id: machine.id, $now: isoNow() });
+    return one('SELECT * FROM device_simulator_state WHERE machine_id = $id', { $id: machine.id });
+  }
+
+  function setDeviceState(state, machineId = 'DEMO-MACHINE') {
+    const current = getDeviceState(machineId);
+    run(`UPDATE device_simulator_state SET card_uid=$uid, present=$present, removed_at_ms=$removed,
+         eligible_at_ms=$eligible, payment_latched=$latched, last_payment_at_ms=$last, cooldown_until_ms=$cooldown, updated_at=$now WHERE machine_id=$id`, {
+      $id: current.machine_id, $uid: state.cardUid || null, $present: state.present ? 1 : 0,
+      $removed: state.removedAtMs || 0, $eligible: state.eligibleAtMs || 0, $latched: state.paymentLatched ? 1 : 0,
+      $last: state.lastPaymentAtMs || 0, $cooldown: state.cooldownUntilMs ?? current.cooldown_until_ms, $now: isoNow()
+    });
+    return getDeviceState(machineId);
+  }
 
   function listLedger({ actorUserId = null, limit = 100 } = {}) {
     const safeLimit = Math.min(Math.max(Number(limit) || 100, 1), 500);
@@ -548,19 +596,11 @@ function createStore(databasePath, options = {}) {
   return {
     dbPath: resolvedPath, close, getConfig, setConfig, createUser, authenticate, sessionUser, revokeSession,
     createAccount, createDemoAccountCard, attachDemoCard, getAccount, listAccounts, createCard, getCard, setCardLock, listCards,
-    createMachine, getMachine, updateMachine, listMachines, topUp, correctBalance, pay, getPulseCommand, simulatePulse,
+    createMachine, getMachine, updateMachine, setMachineTiming, listMachines, topUp, correctBalance, pay, getPulseCommand, simulatePulse,
     retryPulse, reviewPulse, listPulseReviews, getIdempotency, listLedger, listPulses, summary, getUserCount: () => one('SELECT COUNT(*) AS count FROM users').count,
     getUsers: () => many('SELECT id, username, role, locked, created_at FROM users ORDER BY created_at'),
-    getDemoState: () => one('SELECT * FROM simulator_state WHERE id = 1'),
-    setDemoState: (state) => {
-      run(`UPDATE simulator_state SET card_uid = $cardUid, present = $present, removed_at_ms = $removedAtMs,
-           eligible_at_ms = $eligibleAtMs, payment_latched = $paymentLatched, last_payment_at_ms = $lastPaymentAtMs, updated_at = $updatedAt WHERE id = 1`, {
-        $cardUid: state.cardUid || null, $present: state.present ? 1 : 0, $removedAtMs: state.removedAtMs || 0,
-        $eligibleAtMs: state.eligibleAtMs || 0, $paymentLatched: state.paymentLatched ? 1 : 0,
-        $lastPaymentAtMs: state.lastPaymentAtMs || 0, $updatedAt: isoNow()
-      });
-      return one('SELECT * FROM simulator_state WHERE id = 1');
-    },
+    getDemoState: getDeviceState,
+    setDemoState: setDeviceState,
     audit: (eventType, actorUserId, data) => audit(eventType, actorUserId, data)
   };
 }
@@ -599,6 +639,17 @@ function migrate(db) {
   }
   db.exec(`CREATE TABLE IF NOT EXISTS pulse_reviews (id TEXT PRIMARY KEY, command_id TEXT NOT NULL UNIQUE REFERENCES pulse_commands(id), decision TEXT NOT NULL CHECK(decision IN ('reviewed_no_action', 'needs_follow_up')), reason TEXT NOT NULL, actor_user_id TEXT NOT NULL REFERENCES users(id), created_at TEXT NOT NULL);`);
   db.prepare('INSERT OR IGNORE INTO schema_migrations (version, applied_at) VALUES (2, $now)').run({ $now: isoNow() });
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    if (!db.prepare('SELECT version FROM schema_migrations WHERE version = 3').get()) {
+      db.exec(`CREATE TABLE device_timing (machine_id TEXT PRIMARY KEY REFERENCES machines(id), card_removed_ms INTEGER NOT NULL CHECK(card_removed_ms BETWEEN 0 AND 60000), payment_cooldown_ms INTEGER NOT NULL CHECK(payment_cooldown_ms BETWEEN 0 AND 60000));
+        CREATE TABLE device_simulator_state (machine_id TEXT PRIMARY KEY REFERENCES machines(id), card_uid TEXT, present INTEGER NOT NULL DEFAULT 0, removed_at_ms INTEGER NOT NULL DEFAULT 0, eligible_at_ms INTEGER NOT NULL DEFAULT 0, payment_latched INTEGER NOT NULL DEFAULT 0, last_payment_at_ms INTEGER NOT NULL DEFAULT 0, cooldown_until_ms INTEGER NOT NULL DEFAULT 0, updated_at TEXT NOT NULL);
+        INSERT INTO device_timing SELECT id, COALESCE((SELECT CAST(value AS INTEGER) FROM settings WHERE key='card_removed_ms'), 1000), COALESCE((SELECT CAST(value AS INTEGER) FROM settings WHERE key='payment_cooldown_ms'), 500) FROM machines;
+        INSERT INTO device_simulator_state SELECT 'DEMO-MACHINE', card_uid, present, removed_at_ms, eligible_at_ms, payment_latched, last_payment_at_ms, CASE WHEN last_payment_at_ms = 0 THEN 0 ELSE last_payment_at_ms + COALESCE((SELECT CAST(value AS INTEGER) FROM settings WHERE key='payment_cooldown_ms'), 500) END, updated_at FROM simulator_state WHERE id=1 AND EXISTS (SELECT 1 FROM machines WHERE id='DEMO-MACHINE');`);
+      db.prepare('INSERT INTO schema_migrations(version, applied_at) VALUES(3, $now)').run({ $now: isoNow() });
+    }
+    db.exec('COMMIT');
+  } catch (error) { db.exec('ROLLBACK'); throw error; }
 }
 
 function seedDemoData(db) {

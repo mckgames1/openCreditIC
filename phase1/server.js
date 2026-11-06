@@ -119,7 +119,7 @@ function createApp({ store, standalone = true }) {
   }));
 
   app.get('/api/state', requireAuth, handle(async (req, res) => {
-    const simulator = store.getDemoState();
+    const simulator = store.getDemoState(req.query.machineId || 'DEMO-MACHINE');
     const state = {
       ok: true,
       user: req.user,
@@ -184,7 +184,11 @@ function createApp({ store, standalone = true }) {
   }));
 
   app.patch('/api/admin/settings', requireAuth, requireRole('admin'), handle(async (req, res) => {
-    res.json({ ok: true, config: store.setConfig({ card_removed_ms: req.body.cardRemovedMs, payment_cooldown_ms: req.body.paymentCooldownMs }, req.user.id) });
+    res.status(410).json({ ok: false, error: 'device_settings_required', message: 'Süreler artık cihaz bazında ayarlanır.' });
+  }));
+
+  app.patch('/api/machines/:id/timing', requireAuth, requireRole('admin'), handle(async (req, res) => {
+    res.json({ ok: true, machine: publicMachine(store.setMachineTiming(req.params.id, req.body, req.user.id)) });
   }));
 
   app.post('/api/topups', requireAuth, requireRole('admin', 'staff'), handle(async (req, res) => {
@@ -204,22 +208,22 @@ function createApp({ store, standalone = true }) {
     const action = String(req.body.action || '').trim();
     const uid = normalizeUid(req.body.cardUid || 'DEMO-0001');
     const now = Date.now();
-    const state = store.getDemoState();
-    const config = store.getConfig();
+    const machine = store.getMachine(req.body.machineId || 'DEMO-MACHINE');
+    const state = store.getDemoState(machine.id);
     if (action === 'approach') {
       const withinRemovalWindow = state.card_uid === uid && state.removed_at_ms > 0 && now < state.eligible_at_ms;
       if (state.present && state.card_uid !== uid) throw new DomainError('card_already_present', 'Önce mevcut kartı çekin.', 409);
-      store.setDemoState({ cardUid: uid, present: true, removedAtMs: state.removed_at_ms, eligibleAtMs: state.eligible_at_ms, paymentLatched: state.present ? Boolean(state.payment_latched) : withinRemovalWindow, lastPaymentAtMs: state.last_payment_at_ms });
+      store.setDemoState({ cardUid: uid, present: true, removedAtMs: state.removed_at_ms, eligibleAtMs: state.eligible_at_ms, paymentLatched: state.present ? Boolean(state.payment_latched) : withinRemovalWindow, lastPaymentAtMs: state.last_payment_at_ms }, machine.id);
     } else if (action === 'hold') {
       if (!state.present || state.card_uid !== uid) throw new DomainError('card_not_present', 'Önce kartı yaklaştırmalısınız.', 409);
-      store.setDemoState({ cardUid: uid, present: true, removedAtMs: state.removed_at_ms, eligibleAtMs: state.eligible_at_ms, paymentLatched: Boolean(state.payment_latched), lastPaymentAtMs: state.last_payment_at_ms });
+      store.setDemoState({ cardUid: uid, present: true, removedAtMs: state.removed_at_ms, eligibleAtMs: state.eligible_at_ms, paymentLatched: Boolean(state.payment_latched), lastPaymentAtMs: state.last_payment_at_ms }, machine.id);
     } else if (action === 'remove') {
       if (!state.present || state.card_uid !== uid) throw new DomainError('card_not_present', 'Bu kart simülatörde takılı değil.', 409);
-      store.setDemoState({ cardUid: uid, present: false, removedAtMs: now, eligibleAtMs: now + Number(config.card_removed_ms), paymentLatched: true, lastPaymentAtMs: state.last_payment_at_ms });
+      store.setDemoState({ cardUid: uid, present: false, removedAtMs: now, eligibleAtMs: now + machine.card_removed_ms, paymentLatched: true, lastPaymentAtMs: state.last_payment_at_ms }, machine.id);
     } else {
       throw new DomainError('invalid_simulator_action', 'Simülatör eylemi approach, hold veya remove olmalıdır.');
     }
-    res.json({ ok: true, simulator: store.getDemoState() });
+    res.json({ ok: true, simulator: store.getDemoState(machine.id) });
   }));
 
   app.post('/api/demo/payment', requireAuth, requireRole('admin', 'staff'), handle(async (req, res) => {

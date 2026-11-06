@@ -97,6 +97,8 @@ Ardından `http://127.0.0.1:1787/phase1` adresini açın. İlk açılışta yön
 
 Mevcut ana sayfadaki demo kayıt ve yükleme pencereleri için `http://127.0.0.1:1787/phase1/home` adresini açın. Giriş yapıp Register ile demo hesap ve sanal UID oluşturun; kartı seçip Deposit ile yükleme yapın. Simülatör bağlantısını açıp aynı kartı seçerek ödeme deneyebilirsiniz.
 
+Demo makine ve süreler yönetici ana sayfasından cihaz bazında ayarlanabilir. Eski demo veritabanı ilk açılışta şema 3'e geçmeden önce yanında `*.before-v3-*.sqlite` adıyla yedeklenir; eski demo sunucusunu güncelleme öncesinde durdurun. Ortak süreler mevcut cihazlara aktarılır. Yedek alınamazsa geçiş durur. Ayrıntılar `docs/PROGRESS.md` içindedir.
+
 `npm start` ayrı legacy modudur; mevcut JSON verisi ve eski route'lar kullanılır ve sunucu tüm ağ arayüzlerini dinler. Eski route'lar yeni demo güvenlik garantilerini taşımaz. `npm run phase1` yalnızca localhost üzerinde dinler ve legacy route'ları açmaz; gerçek para veya donanım için kullanmayın.
 
 Faz 1 kapsamı, denetim ve açık sorular için `docs/PROJECT_SPEC.md`, `docs/REPO_AUDIT.md`, `docs/PLAN.md`, `docs/OPEN_QUESTIONS.md` ve `docs/PROGRESS.md` dosyalarına bakın.

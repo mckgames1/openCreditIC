@@ -1,6 +1,6 @@
 'use strict';
 
-const state = { data: null, lastPaymentKey: null, lastPaymentCard: null, lastPulseId: null };
+const state = { data: null, lastPaymentKey: null, lastPaymentCard: null, lastPaymentMachine: null, lastPulseId: null };
 const $ = (selector) => document.querySelector(selector);
 const API_BASE = location.pathname === '/phase1' || location.pathname.startsWith('/phase1/') ? '/phase1' : '';
 
@@ -25,6 +25,7 @@ async function api(url, options = {}) {
 function money(cents) { return `${(Number(cents || 0) / 100).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} TL`; }
 function idempotency(prefix) { return `${prefix}-${crypto.randomUUID()}`; }
 function selectedCard() { return $('#sim-card-select').value || 'DEMO-0001'; }
+function selectedMachine() { return $('#sim-machine-select').value || 'DEMO-MACHINE'; }
 
 async function loadSetup() {
   const data = await api('/api/setup/status');
@@ -52,7 +53,8 @@ function render(data) {
   $('#role-label').textContent = data.user.role === 'admin' ? 'YÖNETİCİ' : 'PERSONEL';
   const account = data.accounts[0];
   const card = data.cards.find((entry) => entry.uid === 'DEMO-0001') || data.cards[0];
-  const machine = data.machines[0];
+  fillSelect($('#sim-machine-select'), data.machines, item => item.id, item => item.name);
+  const machine = data.machines.find(item => item.id === selectedMachine()) || data.machines[0];
   $('#balance').textContent = money(account?.tl_balance_cents);
   $('#account-label').textContent = account ? `${account.name} · ${account.id}` : 'Hesap yok';
   $('#machine-price').textContent = money(machine?.price_cents);
@@ -109,12 +111,12 @@ function renderHistory(ledger, pulses) {
 }
 
 async function refresh() {
-  try { render(await api('/api/state')); } catch (error) { showNotice(error.message, true); }
+  try { render(await api(`/api/state?machineId=${encodeURIComponent(selectedMachine())}`)); } catch (error) { showNotice(error.message, true); }
 }
 
 async function runAction(action, cardUid = selectedCard()) {
   try {
-    const data = await api('/api/demo/simulator/card', { method: 'POST', body: JSON.stringify({ action, cardUid }) });
+    const data = await api('/api/demo/simulator/card', { method: 'POST', body: JSON.stringify({ action, cardUid, machineId: selectedMachine() }) });
     renderSimulator(data.simulator);
     showNotice(action === 'remove' ? 'Kart çekildi; bekleme süresi başladı.' : 'Simülatör güncellendi.');
     if (action === 'remove') setTimeout(refresh, 1100);
@@ -143,6 +145,7 @@ $('#login-form').addEventListener('submit', async (event) => {
 
 $('#logout').addEventListener('click', async () => { await api('/api/auth/logout', { method: 'POST' }); location.reload(); });
 $('#refresh').addEventListener('click', refresh);
+$('#sim-machine-select').addEventListener('change', refresh);
 $('#approach').addEventListener('click', () => runAction('approach'));
 $('#hold').addEventListener('click', () => runAction('hold'));
 $('#remove').addEventListener('click', () => runAction('remove'));
@@ -158,15 +161,16 @@ $('#topup-form').addEventListener('submit', async (event) => {
   } catch (error) { showNotice(error.message, true); }
 });
 
-async function sendPayment(key, cardOverride) {
+async function sendPayment(key, cardOverride, machineOverride) {
   let pending = JSON.parse(sessionStorage.getItem('demoPendingPayment') || 'null');
   if (!key && pending) { key = pending.key; }
   const cardUid = pending && pending.key === key ? pending.cardUid : (cardOverride || selectedCard());
+  const machineId = pending && pending.key === key ? (pending.machineId || 'DEMO-MACHINE') : (machineOverride || selectedMachine());
   key ||= idempotency('payment');
-  sessionStorage.setItem('demoPendingPayment', JSON.stringify({ key, cardUid }));
+  sessionStorage.setItem('demoPendingPayment', JSON.stringify({ key, cardUid, machineId }));
   $('#pay').disabled = true;
   try {
-    const data = await api('/api/demo/payment', { method: 'POST', body: JSON.stringify({ machineId: 'DEMO-MACHINE', cardUid, idempotencyKey: key }) });
+    const data = await api('/api/demo/payment', { method: 'POST', body: JSON.stringify({ machineId, cardUid, idempotencyKey: key }) });
     if (!data.approved) {
       sessionStorage.removeItem('demoPendingPayment');
       showNotice(`Ödeme reddedildi: yetersiz bakiye. Kalan: ${data.balanceAfterTl}.`, true);
@@ -175,6 +179,7 @@ async function sendPayment(key, cardOverride) {
     }
     state.lastPaymentKey = key;
     state.lastPaymentCard = cardUid;
+    state.lastPaymentMachine = machineId;
     sessionStorage.removeItem('demoPendingPayment');
     state.lastPulseId = data.pulseCommandId || state.lastPulseId;
     $('#repeat-pay').disabled = false;
@@ -189,7 +194,7 @@ async function sendPayment(key, cardOverride) {
 }
 
 $('#pay').addEventListener('click', () => sendPayment());
-$('#repeat-pay').addEventListener('click', () => { if (state.lastPaymentKey) sendPayment(state.lastPaymentKey, state.lastPaymentCard); });
+$('#repeat-pay').addEventListener('click', () => { if (state.lastPaymentKey) sendPayment(state.lastPaymentKey, state.lastPaymentCard, state.lastPaymentMachine); });
 
 document.querySelectorAll('.outcome').forEach((button) => button.addEventListener('click', async () => {
   if (!state.lastPulseId) return showNotice('Önce bir ödeme komutu oluşturun.', true);
@@ -228,7 +233,7 @@ $('#machine-form').addEventListener('submit', async (event) => {
   event.preventDefault();
   try {
     const body = Object.fromEntries(new FormData(event.currentTarget));
-    await api('/api/machines/DEMO-MACHINE', { method: 'PATCH', body: JSON.stringify(body) });
+    await api(`/api/machines/${encodeURIComponent(selectedMachine())}`, { method: 'PATCH', body: JSON.stringify(body) });
     showNotice('Makine ayarları kaydedildi. Yeni işlemler güncel fiyatı kullanır.');
     await refresh();
   } catch (error) { showNotice(error.message, true); }
